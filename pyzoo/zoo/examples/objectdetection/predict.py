@@ -31,8 +31,8 @@ def predict(model_path, img_path, partition_num=4):
     model = ObjectDetector.load_model(model_path)
     image_set = ImageSet.read(img_path, sc, partition_num)
     output = model.predict_image_set(image_set)
-    result = output.get_predict().first()
-    print(result[1])
+    result = output.get_predict().collect()
+    print(result[0][1])
 
 
 if __name__ == "__main__":

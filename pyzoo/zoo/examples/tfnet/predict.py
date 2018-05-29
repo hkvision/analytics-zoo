@@ -42,8 +42,8 @@ def predict(model_path, img_path, partition_num=4):
     transformed_image_set = image_set.transform(transformer)
     output = model.predict_image(transformed_image_set.to_image_frame(), batch_per_partition=1)
     # Print the detection box with the highest score of the first prediction result.
-    result = output.get_predict().first()
-    print(result[1][0])
+    result = output.get_predict().collect()
+    print(result[0][1][0])
 
 
 if __name__ == "__main__":
