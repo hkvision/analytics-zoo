@@ -30,10 +30,14 @@ import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.models.textclassification.TextClassifier
 import com.intel.analytics.zoo.pipeline.api.keras.metrics.Accuracy
 import com.intel.analytics.zoo.pipeline.api.keras.objectives.SparseCategoricalCrossEntropy
-import com.intel.analytics.zoo.pipeline.api.keras.layers.WordEmbedding
+import com.johnsnowlabs.nlp.base._
+import com.johnsnowlabs.nlp.annotator._
+import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.feature.{CountVectorizer, SQLTransformer, StopWordsRemover}
 import org.apache.log4j.{Level => Level4j, Logger => Logger4j}
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{Row, SparkSession}
 import org.slf4j.{Logger, LoggerFactory}
 import scopt.OptionParser
 
@@ -146,6 +150,8 @@ object TextClassification {
         .setAppName("Text Classification Example")
         .set("spark.task.maxFailures", "1")
       val sc = NNContext.initNNContext(conf)
+      val spark = SparkSession.builder().config(conf).getOrCreate()
+      import spark.implicits._
 
       val sequenceLength = param.sequenceLength
       val trainingSplit = param.trainingSplit
@@ -158,6 +164,71 @@ object TextClassification {
         "GloVe word embeddings directory is not found in baseDir, " +
         "you can run $ANALYTICS_ZOO_HOME/bin/data/glove/get_glove.sh to download")
 
+      val data = loadRawData(textDataDir).take(10)
+      val textDF = data.toDF("text", "label")
+
+      val documentAssembler = new DocumentAssembler().
+        setInputCol("text").
+        setOutputCol("document")
+
+      val sentenceDetector = new SentenceDetector().
+        setInputCols(Array("document")).
+        setOutputCol("sentence")
+
+      val regexTokenizer = new Tokenizer().
+        setInputCols(Array("sentence")).
+        setOutputCol("token")
+
+      val normalizer = new Normalizer().setLowercase(true)
+        .setInputCols(Array("token"))
+        .setOutputCol("normalized")
+
+      val finisher = new Finisher().
+        setInputCols("normalized").
+        setCleanAnnotations(false).setOutputCols("finished")
+
+      // input should be array of string
+      val remover = new StopWordsRemover()
+        .setInputCol("finished")
+        .setOutputCol("filtered")
+
+      val indexer = new CountVectorizer()
+        .setInputCol("filtered")
+        .setOutputCol("vectors")
+        .setVocabSize(5000)
+        .setMinDF(2)
+
+      import org.apache.spark.ml.linalg._
+
+
+      spark.udf.register("indices", (v: Vector) => v.toSparse.indices)
+
+      val sql = new SQLTransformer()
+        .setStatement("SELECT *, indices(vector) FROM __THIS__")
+
+      val pipeline = new Pipeline().
+        setStages(Array(
+          documentAssembler,
+          sentenceDetector,
+          regexTokenizer,
+          normalizer,
+          finisher,
+          remover,
+          indexer
+        ))
+
+      val resDF = pipeline
+        .fit(textDF)
+        .transform(textDF).select("vectors", "label")
+
+//      val shapedDF = resDF.map(row => {
+//        val tokens = row.getAs[Array[String]]("filtered")
+//        val label = row.getAs[Float]("label")
+//        val shapedTokens = if (tokens.length >= 500) tokens.take(500)
+//        else tokens
+//        Row(shapedTokens, label)
+//      })
+      
       // For large dataset, you might want to get such RDD[(String, Float)] from HDFS
       val dataRdd = sc.parallelize(loadRawData(textDataDir), param.partitionNum)
       val word2Meta = analyzeTexts(dataRdd, param.maxWordsNum)
