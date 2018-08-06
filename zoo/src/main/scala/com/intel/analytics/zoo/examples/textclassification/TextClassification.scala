@@ -20,8 +20,6 @@ import java.io.File
 import java.util
 
 import com.intel.analytics.bigdl.dataset.Sample
-import com.intel.analytics.bigdl.example.utils.SimpleTokenizer._
-import com.intel.analytics.bigdl.example.utils.{SimpleTokenizer, WordMeta}
 import com.intel.analytics.bigdl.optim._
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric.NumericFloat
@@ -32,12 +30,15 @@ import com.intel.analytics.zoo.pipeline.api.keras.metrics.Accuracy
 import com.intel.analytics.zoo.pipeline.api.keras.objectives.SparseCategoricalCrossEntropy
 import com.johnsnowlabs.nlp.base._
 import com.johnsnowlabs.nlp.annotator._
-import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.feature.{CountVectorizer, SQLTransformer, StopWordsRemover}
+import org.apache.spark.ml.{Pipeline, Transformer}
+import org.apache.spark.ml.feature.{SQLTransformer, StopWordsRemover, StringIndexer}
 import org.apache.log4j.{Level => Level4j, Logger => Logger4j}
 import org.apache.spark.SparkConf
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.util.Identifiable
+import org.apache.spark.sql.functions.{col, udf}
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
+import org.apache.spark.sql.types.{ArrayType, DoubleType, StructField, StructType}
 import org.slf4j.{Logger, LoggerFactory}
 import scopt.OptionParser
 
@@ -88,20 +89,6 @@ object TextClassification {
     log.info(s"Found ${texts.length} texts.")
     log.info(s"Found $classNum classes")
     texts.zip(labels)
-  }
-
-  // Turn texts into tokens
-  def analyzeTexts(dataRdd: RDD[(String, Float)], maxWordsNum: Int)
-  : Map[String, WordMeta] = {
-    // Remove the top 10 words roughly. You might want to fine tune this.
-    val frequencies = dataRdd.flatMap{case (text: String, label: Float) =>
-      SimpleTokenizer.toTokens(text)
-    }.map(word => (word, 1)).reduceByKey(_ + _)
-      .sortBy(- _._2).collect().slice(10, maxWordsNum)
-
-    val indexes = Range(1, frequencies.length)
-    frequencies.zip(indexes).map{item =>
-      (item._1._1, WordMeta(item._1._2, item._2))}.toMap
   }
 
   def main(args: Array[String]): Unit = {
@@ -164,8 +151,11 @@ object TextClassification {
         "GloVe word embeddings directory is not found in baseDir, " +
         "you can run $ANALYTICS_ZOO_HOME/bin/data/glove/get_glove.sh to download")
 
-      val data = loadRawData(textDataDir).take(10)
-      val textDF = data.toDF("text", "label")
+      val data = loadRawData(textDataDir)
+      val dataDF = data.toDF("text", "label")
+      import org.apache.spark.sql.functions._
+
+      val textDF = dataDF.withColumn("id", monotonically_increasing_id())
 
       val documentAssembler = new DocumentAssembler().
         setInputCol("text").
@@ -192,20 +182,6 @@ object TextClassification {
         .setInputCol("finished")
         .setOutputCol("filtered")
 
-      val indexer = new CountVectorizer()
-        .setInputCol("filtered")
-        .setOutputCol("vectors")
-        .setVocabSize(5000)
-        .setMinDF(2)
-
-      import org.apache.spark.ml.linalg._
-
-
-      spark.udf.register("indices", (v: Vector) => v.toSparse.indices)
-
-      val sql = new SQLTransformer()
-        .setStatement("SELECT *, indices(vector) FROM __THIS__")
-
       val pipeline = new Pipeline().
         setStages(Array(
           documentAssembler,
@@ -213,35 +189,41 @@ object TextClassification {
           regexTokenizer,
           normalizer,
           finisher,
-          remover,
-          indexer
+          remover
         ))
 
-      val resDF = pipeline
+      val tokensDF = pipeline
         .fit(textDF)
-        .transform(textDF).select("vectors", "label")
+        .transform(textDF).select("filtered", "label", "id")
 
-//      val shapedDF = resDF.map(row => {
-//        val tokens = row.getAs[Array[String]]("filtered")
-//        val label = row.getAs[Float]("label")
-//        val shapedTokens = if (tokens.length >= 500) tokens.take(500)
-//        else tokens
-//        Row(shapedTokens, label)
-//      })
-      
-      // For large dataset, you might want to get such RDD[(String, Float)] from HDFS
-      val dataRdd = sc.parallelize(loadRawData(textDataDir), param.partitionNum)
-      val word2Meta = analyzeTexts(dataRdd, param.maxWordsNum)
-      val word2MetaBC = sc.broadcast(word2Meta)
+      // Transform tokens into indices
+      val explodedDF = new SQLTransformer()
+        .setStatement("SELECT label, id, explode(filtered) as word FROM __THIS__")
+        .transform(tokensDF)
 
-      val indexedRdd = dataRdd
-        .map {case (text, label) => (toTokens(text, word2MetaBC.value), label)}
-        .map {case (tokens, label) => (shaping(tokens, sequenceLength), label)}
-      val sampleRDD = indexedRdd.map {case (input: Array[Float], label: Float) =>
+      val stringIndexer = new StringIndexer().setInputCol("word").setOutputCol("index")
+      val stringIndexerModel = stringIndexer.fit(explodedDF)
+      val labels = stringIndexerModel.labels
+
+      val pipeline2 = new Pipeline().setStages(Array(
+        stringIndexer,
+        new SQLTransformer()
+          .setStatement("""SELECT label, id, index+1 AS index FROM __THIS__ where index<5000.0"""),
+        new SQLTransformer()
+          .setStatement("""SELECT first(label), id, COLLECT_LIST(index) AS values
+                        FROM __THIS__ GROUP BY id"""),
+        new Shaper()
+      ))
+      val shapedIndexedDF = pipeline2.fit(explodedDF)
+        .transform(explodedDF)
+        .select("first(label, false)", "shaped_values")
+
+      val sampleRDD = shapedIndexedDF.rdd.map(row => {
         Sample(
-          featureTensor = Tensor(input, Array(sequenceLength)),
-          label = label)
-      }
+          featureTensor = Tensor(row.get(1).asInstanceOf[Seq[Double]].toArray.map(_.toFloat),
+            Array(sequenceLength)),
+          label = row.get(0).asInstanceOf[Float])
+      })
 
       val Array(trainingRDD, valRDD) = sampleRDD.randomSplit(
         Array(trainingSplit, 1 - trainingSplit))
@@ -253,7 +235,7 @@ object TextClassification {
         val tokenLength = param.tokenLength
         require(tokenLength == 50 || tokenLength == 100 || tokenLength == 200 || tokenLength == 300,
         s"tokenLength for GloVe can only be 50, 100, 200, 300, but got $tokenLength")
-        val wordIndex = word2Meta.map(x => x._1 -> x._2.index)
+        val wordIndex = (labels.take(5000) zip (Stream from 1)).map(x => x._1 -> x._2).toMap
         val gloveFile = gloveDir + "glove.6B." + tokenLength.toString + "d.txt"
         TextClassifier(classNum, gloveFile, wordIndex, sequenceLength,
           param.encoder, param.encoderOutputDim)
@@ -283,5 +265,38 @@ object TextClassification {
 
       sc.stop()
     }
+  }
+}
+
+
+class Shaper(override val uid: String) extends Transformer {
+
+  def this() = this(Identifiable.randomUID("shaping"))
+
+  def copy(extra: ParamMap): Shaper = {
+    defaultCopy(extra)
+  }
+
+  override def transformSchema(schema: StructType): StructType = {
+    // Check that the input type is a string
+    val idx = schema.fieldIndex("values")
+    val field = schema.fields(idx)
+    require(field.dataType == ArrayType(DoubleType),
+      s"Input type must be ArrayType(StringType) but got ${field.dataType}.")
+    // Add the return field
+    schema.add(StructField("shaped_values", ArrayType(DoubleType), false))
+  }
+
+  def transform(df: Dataset[_]): DataFrame = {
+    val shaping = udf { in: Seq[Double] => {
+      if (in.length > 500) {
+        in.slice(in.length - 500, in.length)
+      }
+      else {
+        in ++ Array.fill[Double](500 - in.length)(0)
+      }
+    } }
+    df.select(col("*"),
+      shaping(df.col("values")).as("shaped_values"))
   }
 }
