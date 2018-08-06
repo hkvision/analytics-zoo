@@ -34,11 +34,11 @@ import org.apache.spark.ml.{Pipeline, Transformer}
 import org.apache.spark.ml.feature.{SQLTransformer, StopWordsRemover, StringIndexer}
 import org.apache.log4j.{Level => Level4j, Logger => Logger4j}
 import org.apache.spark.SparkConf
-import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
-import org.apache.spark.sql.types.{ArrayType, DoubleType, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, StructField, StructType}
 import org.slf4j.{Logger, LoggerFactory}
 import scopt.OptionParser
 
@@ -157,25 +157,26 @@ object TextClassification {
 
       val textDF = dataDF.withColumn("id", monotonically_increasing_id())
 
-      val documentAssembler = new DocumentAssembler().
-        setInputCol("text").
-        setOutputCol("document")
+      val documentAssembler = new DocumentAssembler()
+        .setInputCol("text")
+        .setOutputCol("document")
 
-      val sentenceDetector = new SentenceDetector().
-        setInputCols(Array("document")).
-        setOutputCol("sentence")
+      val sentenceDetector = new SentenceDetector()
+        .setInputCols(Array("document"))
+        .setOutputCol("sentence")
 
-      val regexTokenizer = new Tokenizer().
-        setInputCols(Array("sentence")).
-        setOutputCol("token")
+      val regexTokenizer = new Tokenizer()
+        .setInputCols(Array("sentence"))
+        .setOutputCol("token")
 
-      val normalizer = new Normalizer().setLowercase(true)
+      val normalizer = new Normalizer()
+        .setLowercase(true)
         .setInputCols(Array("token"))
         .setOutputCol("normalized")
 
-      val finisher = new Finisher().
-        setInputCols("normalized").
-        setCleanAnnotations(false).setOutputCols("finished")
+      val finisher = new Finisher()
+        .setInputCols("normalized")
+        .setOutputCols("finished")
 
       // input should be array of string
       val remover = new StopWordsRemover()
@@ -188,17 +189,18 @@ object TextClassification {
           sentenceDetector,
           regexTokenizer,
           normalizer,
-          finisher,
-          remover
+          finisher
+          //          remover
         ))
 
       val tokensDF = pipeline
-        .fit(textDF)
-        .transform(textDF).select("filtered", "label", "id")
+        .fit(Seq.empty[(String, Float, Int)].toDF("text", "label", "id"))
+        .transform(textDF)
+        .select("finished", "label", "id")
 
       // Transform tokens into indices
       val explodedDF = new SQLTransformer()
-        .setStatement("SELECT label, id, explode(filtered) as word FROM __THIS__")
+        .setStatement("SELECT explode(finished) as word, label, id FROM __THIS__")
         .transform(tokensDF)
 
       val stringIndexer = new StringIndexer().setInputCol("word").setOutputCol("index")
@@ -206,15 +208,16 @@ object TextClassification {
       val labels = stringIndexerModel.labels
 
       val pipeline2 = new Pipeline().setStages(Array(
-        stringIndexer,
+        stringIndexerModel,
         new SQLTransformer()
-          .setStatement("""SELECT label, id, index+1 AS index FROM __THIS__ where index<5000.0"""),
+          .setStatement("""SELECT label, id, index+1 AS index FROM __THIS__ where index<5000.0 AND index>10.0"""),
         new SQLTransformer()
           .setStatement("""SELECT first(label), id, COLLECT_LIST(index) AS values
                         FROM __THIS__ GROUP BY id"""),
-        new Shaper()
+        new Shaper().setInputCol("values").setOutputCol("shaped_values")
       ))
-      val shapedIndexedDF = pipeline2.fit(explodedDF)
+      val shapedIndexedDF = pipeline2
+        .fit(Seq.empty[(String, Float, Int)].toDF("word", "label", "id"))
         .transform(explodedDF)
         .select("first(label, false)", "shaped_values")
 
@@ -234,7 +237,7 @@ object TextClassification {
       else {
         val tokenLength = param.tokenLength
         require(tokenLength == 50 || tokenLength == 100 || tokenLength == 200 || tokenLength == 300,
-        s"tokenLength for GloVe can only be 50, 100, 200, 300, but got $tokenLength")
+          s"tokenLength for GloVe can only be 50, 100, 200, 300, but got $tokenLength")
         val wordIndex = (labels.take(5000) zip (Stream from 1)).map(x => x._1 -> x._2).toMap
         val gloveFile = gloveDir + "glove.6B." + tokenLength.toString + "d.txt"
         TextClassifier(classNum, gloveFile, wordIndex, sequenceLength,
@@ -271,32 +274,41 @@ object TextClassification {
 
 class Shaper(override val uid: String) extends Transformer {
 
-  def this() = this(Identifiable.randomUID("shaping"))
+  final val inputCol = new Param[String](this, "inputCol", "The input column")
+  final val outputCol = new Param[String](this, "outputCol", "The output column")
+  final val length = new Param[Int](this, "length", "The sequence length after shaping")
+
+  def setInputCol(value: String): this.type = set(inputCol, value)
+
+  def setOutputCol(value: String): this.type = set(outputCol, value)
+
+  def setLength(value: Int): this.type = set(length, value)
+  setDefault(length, 500)
+
+  def this() = this(Identifiable.randomUID("shaper"))
 
   def copy(extra: ParamMap): Shaper = {
     defaultCopy(extra)
   }
 
   override def transformSchema(schema: StructType): StructType = {
-    // Check that the input type is a string
-    val idx = schema.fieldIndex("values")
+    val idx = schema.fieldIndex($(inputCol))
     val field = schema.fields(idx)
-    require(field.dataType == ArrayType(DoubleType),
-      s"Input type must be ArrayType(StringType) but got ${field.dataType}.")
-    // Add the return field
-    schema.add(StructField("shaped_values", ArrayType(DoubleType), false))
+    require(field.dataType.isInstanceOf[ArrayType],
+      s"Input type must be ArrayType but got ${field.dataType}.")
+    schema.add(StructField($(outputCol), field.dataType, false))
   }
 
   def transform(df: Dataset[_]): DataFrame = {
     val shaping = udf { in: Seq[Double] => {
-      if (in.length > 500) {
-        in.slice(in.length - 500, in.length)
+      if (in.length > $(length)) {
+        in.slice(in.length - $(length), in.length)
       }
       else {
-        in ++ Array.fill[Double](500 - in.length)(0)
+        in ++ Array.fill[Double]($(length) - in.length)(0)
       }
     } }
     df.select(col("*"),
-      shaping(df.col("values")).as("shaped_values"))
+      shaping(df.col($(inputCol))).as($(outputCol)))
   }
 }
