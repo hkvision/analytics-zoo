@@ -31,7 +31,6 @@ import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
-import scala.reflect.ClassTag
 
 /**
  * TextSet wraps a set of TextFeature.
@@ -61,21 +60,14 @@ abstract class TextSet {
   /**
    * Convert to a LocalTextSet.
    */
-  def toLocal(): LocalTextSet = {
-    this.asInstanceOf[LocalTextSet]
-  }
+  def toLocal(): LocalTextSet
 
   /**
    * Convert to a DistributedTextSet.
-   * LocalTextSet ought to override this method.
    */
-  def toDistributed(sc: SparkContext = null): DistributedTextSet = {
-    this.asInstanceOf[DistributedTextSet]
-  }
+  def toDistributed(sc: SparkContext = null): DistributedTextSet
 
-  def toDistributed(sc: SparkContext, partitionNum: Int): DistributedTextSet = {
-    this.asInstanceOf[DistributedTextSet]
-  }
+  def toDistributed(sc: SparkContext, partitionNum: Int): DistributedTextSet
 
   /**
    * Convert TextSet to DataSet of Sample.
@@ -90,6 +82,7 @@ abstract class TextSet {
 
   /**
    * Tokenization on original text.
+   * See Tokenizer for more details.
    */
   def tokenize(): TextSet = {
     transform(Tokenizer())
@@ -97,28 +90,10 @@ abstract class TextSet {
 
   /**
    * Normalization on tokens.
+   * See Normalizer for more details.
    */
   def normalize(): TextSet = {
     transform(Normalizer())
-  }
-
-  /**
-   * Map word tokens to index tokens.
-   * By default, index will start from 1 and correspond to the frequency of each word
-   * in descending order.
-   *
-   * @param removeTopN Integer. Remove the topN words with highest frequencies in the case
-   *                   where those are treated as stopwords. Default is 0, namely remove nothing.
-   * @param maxWordsNum Integer. The maximum number of words to be taken into consideration.
-   *                    Default is -1, namely all words with occurrences will be considered.
-   */
-  def word2idx(removeTopN: Int = 0, maxWordsNum: Int = -1): TextSet = {
-    if (wordIndex != null) {
-      TextSet.logger.info("wordIndex already exists. Using the existing wordIndex")
-    } else {
-      generateWordIndexMap(removeTopN, maxWordsNum)
-    }
-    transform(WordIndexer(wordIndex))
   }
 
   /**
@@ -133,18 +108,33 @@ abstract class TextSet {
   }
 
   /**
+   * Map word tokens to index tokens.
+   * All words occurred will be given an index and index starts from 1.
+   * See WordIndexer for more details.
+   *
+   * After word2idx, you can get the wordIndex map by calling 'getWordIndex'.
+   */
+  def word2idx(): TextSet = {
+    if (wordIndex != null) {
+      TextSet.logger.info("wordIndex already exists. Using the existing wordIndex")
+    } else {
+      generateWordIndexMap()
+    }
+    transform(WordIndexer(wordIndex))
+  }
+
+  /**
    * Generate BigDL Sample.
+   * See TextFeatureToSample for more details.
    */
   def genSample(): TextSet = {
     transform(TextFeatureToSample())
   }
 
   /**
-   * Generate wordIndex map based on sorted word frequencies in descending order.
-   * Result map stored in 'wordIndex'.
+   * Give each word occurred an index starting from 1.
    */
-  protected def generateWordIndexMap(
-                                      removeTopN: Int = 0, maxWordsNum: Int = 5000): Unit
+  protected def generateWordIndexMap(): Unit
 
   private var wordIndex: Map[String, Int] = _
 
@@ -236,13 +226,11 @@ object TextSet {
     textSet
   }
 
-  // Given an array of words, each with its frequency sorted by its descending order,
-  // return a Map of word and its corresponding index.
-  // Index starts from 1.
-  def wordIndexFromFrequencies(frequencies: Array[(String, Int)]): Map[String, Int] = {
-    val indexes = Range(1, frequencies.length + 1)
-    frequencies.zip(indexes).map{item =>
-      (item._1._1, item._2)}.toMap
+  // Given an array of words, zip each word with its corresponding index.
+  // Return a wordIndex map. Index starts from 1.
+  def zipWordIndex(words: Array[String]): Map[String, Int] = {
+    val indexes = Range(1, words.length + 1)
+    words.zip(indexes).toMap
   }
 }
 
@@ -257,6 +245,10 @@ class LocalTextSet(var array: Array[TextFeature]) extends TextSet {
   override def isLocal: Boolean = true
 
   override def isDistributed: Boolean = false
+
+  override def toLocal(): LocalTextSet = {
+    this
+  }
 
   override def toDistributed(sc: SparkContext): DistributedTextSet = {
     new DistributedTextSet(sc.parallelize(array))
@@ -274,15 +266,9 @@ class LocalTextSet(var array: Array[TextFeature]) extends TextSet {
     throw new UnsupportedOperationException("LocalTextSet doesn't support randomSplit for now")
   }
 
-  override def generateWordIndexMap(
-     removeTopN: Int = 0, maxWordsNum: Int = -1): Unit = {
-    var frequencies = array.flatMap(feature => feature[Array[String]](TextFeature.tokens))
-      .groupBy(identity).mapValues(_.length)
-      .toArray.sortBy(- _._2).drop(removeTopN)
-    if (maxWordsNum > 0) {
-      frequencies = frequencies.take(maxWordsNum)
-    }
-    val wordIndex = TextSet.wordIndexFromFrequencies(frequencies)
+  override def generateWordIndexMap(): Unit = {
+    val frequencies = array.flatMap(_[Array[String]](TextFeature.tokens)).distinct
+    val wordIndex = TextSet.zipWordIndex(frequencies)
     setWordIndex(wordIndex)
   }
 }
@@ -303,6 +289,14 @@ class DistributedTextSet(var rdd: RDD[TextFeature]) extends TextSet {
     new LocalTextSet(rdd.collect())
   }
 
+  override def toDistributed(sc: SparkContext = null): DistributedTextSet = {
+    this
+  }
+
+  override def toDistributed(sc: SparkContext, partitionNum: Int): DistributedTextSet = {
+    this
+  }
+
   override def toDataSet: DataSet[Sample[Float]] = {
     DataSet.rdd(rdd.map(_[Sample[Float]](TextFeature.sample)))
   }
@@ -311,16 +305,10 @@ class DistributedTextSet(var rdd: RDD[TextFeature]) extends TextSet {
     rdd.randomSplit(weights).map(TextSet.rdd)
   }
 
-  override def generateWordIndexMap(
-      removeTopN: Int = 0, maxWordsNum: Int = -1): Unit = {
-    var frequencies = rdd.flatMap(text => text[Array[String]](TextFeature.tokens))
-      .map(word => (word, 1)).reduceByKey(_ + _)
-      .sortBy(- _._2).collect().drop(removeTopN)
-    if (maxWordsNum > 0) {
-      frequencies = frequencies.take(maxWordsNum)
-    }
+  override def generateWordIndexMap(): Unit = {
+    val words = rdd.flatMap(_[Array[String]](TextFeature.tokens)).distinct().collect()
     rdd.persist()
-    val wordIndex = TextSet.wordIndexFromFrequencies(frequencies)
+    val wordIndex = TextSet.zipWordIndex(words)
     val wordIndexBC = rdd.sparkContext.broadcast(wordIndex)
     setWordIndex(wordIndexBC.value)
   }

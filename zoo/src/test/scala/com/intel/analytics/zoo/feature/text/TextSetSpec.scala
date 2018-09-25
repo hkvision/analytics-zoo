@@ -32,7 +32,7 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
   var sc : SparkContext = _
 
   before {
-    val conf = new SparkConf().setAppName("Test TextFeature and TextSet").setMaster("local[1]")
+    val conf = new SparkConf().setAppName("Test TextSet").setMaster("local[1]")
     sc = NNContext.initNNContext(conf)
   }
 
@@ -60,21 +60,21 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
   "DistributedTextSet Transformation" should "work properly" in {
     val distributed = TextSet.rdd(sc.parallelize(genFeatures()))
     require(distributed.isDistributed)
-    val t1 = distributed.tokenize()
-    val t2 = t1.normalize()
-    val t3 = t2.word2idx(maxWordsNum = 10)
-    val t4 = t3.shapeSequence(len = 5).genSample()
-    require(t4.isDistributed)
+    val shaped = distributed -> Tokenizer() -> Normalizer() -> SequenceShaper(len = 5)
+    val transformed = shaped.word2idx().genSample()
+    require(transformed.isDistributed)
 
-    val wordIndex1 = t3.getWordIndex
-    val wordIndex2 = t4.getWordIndex
-    require(wordIndex1 == wordIndex2 && wordIndex2.toArray.length == 10)
-    require(wordIndex1("my") == 1)
+    val wordIndex = transformed.getWordIndex
+    require(wordIndex.toArray.length == 9)
+    require(wordIndex.keySet == HashSet("friend", "please", "annotate", "my", "text",
+      "some", "sentence", "for", "test"))
+    require(wordIndex.values.min == 1)
+    require(wordIndex.values.max == 9)
 
-    val features = t4.toDistributed().rdd.collect()
+    val features = transformed.toDistributed().rdd.collect()
     require(features.length == 2)
     require(features(0).keys() == HashSet("label", "text", "tokens", "indexedTokens", "sample"))
-    require(features(0)[Array[Int]]("indexedTokens").length == 5)
+    require(features(0)[Array[Float]]("indexedTokens").length == 5)
   }
 
   "LocalTextSet Transformation" should "work properly" in {
@@ -82,19 +82,18 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     require(local.isLocal)
 
     val transformed =
-      local.tokenize().normalize().word2idx().shapeSequence(len = 6).genSample()
+      local.tokenize().normalize().shapeSequence(len = 10).word2idx().genSample()
     require(transformed.isLocal)
 
     val wordIndex = transformed.getWordIndex
-    require(wordIndex.toArray.length == 13)
+    require(wordIndex.toArray.length == 14)
     require(wordIndex.keySet.contains("hello"))
     require(!wordIndex.keySet.contains("Hello"))
-    require(wordIndex("my") == 1)
 
     val features = transformed.toLocal().array
     require(features.length == 2)
     require(features(0).keys() == HashSet("label", "text", "tokens", "indexedTokens", "sample"))
-    require(features(0)[Array[Int]]("indexedTokens").length == 6)
+    require(features(0)[Array[Float]]("indexedTokens").length == 10)
   }
 
   "TextSet read with sc, fit, predict and evaluate" should "work properly" in {
@@ -103,7 +102,7 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     require(textSet.toDistributed().rdd.count() == 5)
     require(textSet.toDistributed().rdd.collect().head.keys() == HashSet("label", "text"))
     val transformed = textSet.tokenize().normalize()
-      .word2idx(removeTopN = 5, maxWordsNum = 299).shapeSequence(len = 30).genSample()
+      .shapeSequence(len = 30).word2idx().genSample()
     val model = buildModel()
     model.compile("sgd", "sparse_categorical_crossentropy", List("accuracy"))
     model.fit(transformed, batchSize = 4, nbEpoch = 2, validationData = transformed)
@@ -119,7 +118,7 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     require(textSet.toLocal().array.length == 5)
     require(textSet.toLocal().array.head.keys() == HashSet("label", "text"))
     val transformed = textSet.tokenize().normalize()
-      .word2idx(removeTopN = 5, maxWordsNum = 299).shapeSequence(len = 30).genSample()
+      .shapeSequence(len = 30).word2idx().genSample()
     val model = buildModel()
     model.compile("sgd", "sparse_categorical_crossentropy", List("accuracy"))
     model.fit(transformed, batchSize = 4, nbEpoch = 2, validationData = transformed)
