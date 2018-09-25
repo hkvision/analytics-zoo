@@ -205,7 +205,9 @@ object TextSet {
       val texts = ArrayBuffer[String]()
       val labels = ArrayBuffer[Int]()
       val categoryToLabel = new util.HashMap[String, Int]()
-      val categoryPathList = new File(path).listFiles().filter(_.isDirectory).toList.sorted
+      val categoryPath = new File(path)
+      require(categoryPath.exists(), s"$path doesn't exist. Please check your input path")
+      val categoryPathList = categoryPath.listFiles().filter(_.isDirectory).toList.sorted
       categoryPathList.foreach { categoryPath =>
         val label = categoryToLabel.size()
         categoryToLabel.put(categoryPath.getName, label)
