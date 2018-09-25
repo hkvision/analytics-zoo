@@ -20,6 +20,7 @@ import java.util.{List => JList, Map => JMap}
 
 import com.intel.analytics.bigdl.python.api.{PythonBigDL, Sample}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
+import com.intel.analytics.bigdl.dataset.{Sample => JSample}
 import com.intel.analytics.zoo.feature.text.TruncMode.TruncMode
 import com.intel.analytics.zoo.feature.text._
 
@@ -74,9 +75,9 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
   }
 
   def textFeatureGetSample(feature: TextFeature): Sample = {
-    val sample = feature.getSample[T]
+    val sample = feature.getSample
     if (sample != null) {
-      toPySample(sample)
+      toPySample(sample.asInstanceOf[JSample[T]])
     }
     else {
       null

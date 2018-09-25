@@ -106,7 +106,7 @@ class TextFeature extends Serializable {
    * Get the Sample representation of the TextFeature.
    * If the TextFeature hasn't been transformed to Sample, null will be returned.
    */
-  def getSample[T: ClassTag]: Sample[T] = apply[Sample[T]](TextFeature.sample)
+  def getSample: Sample[Float] = apply[Sample[Float]](TextFeature.sample)
 }
 
 object TextFeature {
