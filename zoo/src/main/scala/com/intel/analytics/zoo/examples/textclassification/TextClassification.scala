@@ -83,6 +83,7 @@ object TextClassification {
 
       val textSet = TextSet.read(param.baseDir + "/20news-18828/")
         .toDistributed(sc, param.partitionNum)
+      println("Processing text dataset...")
       val transformed = textSet.tokenize().normalize().shapeSequence(param.sequenceLength)
         .word2idx(removeTopN = 10, maxWordsNum = param.maxWordsNum).genSample()
       val Array(trainTextSet, valTextSet) = transformed.randomSplit(
@@ -110,7 +111,7 @@ object TextClassification {
         nbEpoch = param.nbEpoch, validationData = valTextSet)
 
       val predictSet = model.predict(valTextSet, batchPerThread = param.partitionNum)
-      println("Probability distributions of the first five texts in validation set:")
+      println("Probability distributions of the first five texts in the validation set:")
       predictSet.toDistributed().rdd.take(5).map(_.getPredict.toTensor).foreach(println)
       sc.stop()
     }
