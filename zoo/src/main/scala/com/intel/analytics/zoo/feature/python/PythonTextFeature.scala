@@ -261,8 +261,10 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
   }
 
   def textSetWord2idx(
-      textSet: TextSet): TextSet = {
-    textSet.word2idx()
+      textSet: TextSet,
+      removeTopN: Int,
+      maxWordsNum: Int): TextSet = {
+    textSet.word2idx(removeTopN, maxWordsNum)
   }
 
   def textSetGenSample(textSet: TextSet): TextSet = {

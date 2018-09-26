@@ -77,11 +77,13 @@ abstract class TextSet {
   /**
    * Randomly split into array of TextSet with provided weights.
    * Only available for DistributedTextSet for now.
+   *
+   * @param weights Array of Double indicating the split portions.
    */
   def randomSplit(weights: Array[Double]): Array[TextSet]
 
   /**
-   * Tokenization on original text.
+   * Do tokenization on original text.
    * See Tokenizer for more details.
    */
   def tokenize(): TextSet = {
@@ -89,7 +91,7 @@ abstract class TextSet {
   }
 
   /**
-   * Normalization on tokens.
+   * Do normalization on tokens.
    * See Normalizer for more details.
    */
   def normalize(): TextSet = {
