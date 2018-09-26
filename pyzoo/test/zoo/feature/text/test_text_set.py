@@ -59,6 +59,23 @@ class TestTextSet:
         distributed_set = DistributedTextSet(self.sc.parallelize(self.texts))
         assert distributed_set.get_labels().collect() == [-1, -1, -1]
 
+    def test_textset_convertion(self):
+        local_set = LocalTextSet(self.texts, self.labels)
+        local1 = local_set.to_local()
+        distributed1 = local_set.to_distributed(self.sc)
+        assert local1.is_local()
+        assert distributed1.is_distributed()
+        assert local1.get_texts() == distributed1.get_texts().collect()
+
+        texts_rdd = self.sc.parallelize(self.texts)
+        labels_rdd = self.sc.parallelize(self.labels)
+        distributed_set = DistributedTextSet(texts_rdd, labels_rdd)
+        local2 = distributed_set.to_local()
+        distributed2 = distributed_set.to_distributed()
+        assert local2.is_local()
+        assert distributed2.is_distributed()
+        assert local2.get_texts() == distributed2.get_texts().collect()
+
     def test_local_textset_integration(self):
         local_set = LocalTextSet(self.texts, self.labels)
         assert local_set.is_local()

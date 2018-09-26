@@ -23,7 +23,7 @@ import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.dataset.{Sample => JSample}
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.zoo.feature.text.TruncMode.TruncMode
-import com.intel.analytics.zoo.feature.text._
+import com.intel.analytics.zoo.feature.text.{DistributedTextSet, _}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 
 import scala.collection.JavaConverters._
@@ -270,4 +270,22 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
   def textSetGenSample(textSet: TextSet): TextSet = {
     textSet.genSample()
   }
+
+  def textSetToDistributed(
+      textSet: TextSet,
+      sc: JavaSparkContext): DistributedTextSet = {
+    textSet.toDistributed(sc.sc)
+  }
+
+  def textSetToDistributed(
+      textSet: TextSet,
+      sc: JavaSparkContext,
+      partitionNum: Int): DistributedTextSet = {
+    textSet.toDistributed(sc.sc, partitionNum)
+  }
+
+  def textSetToLocal(textSet: TextSet): LocalTextSet = {
+    textSet.toLocal()
+  }
+
 }

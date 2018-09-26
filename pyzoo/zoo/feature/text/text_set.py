@@ -47,6 +47,34 @@ class TextSet(JavaValue):
         """
         return callBigDlFunc(self.bigdl_type, "textSetIsDistributed", self.value)
 
+    def to_distributed(self, sc=None, partition_num=None):
+        """
+        Convert to a DistributedTextSet
+        :return: DistributedTextSet
+        """
+        if self.is_distributed():
+            jvalue = self.value
+        else:
+            assert sc, "sc cannot be null to transform a LocalTextSet to a DistributedTextSet"
+            if partition_num:
+                jvalue = callBigDlFunc(self.bigdl_type, "textSetToDistributed", self.value,
+                                       sc, partition_num)
+            else:
+                jvalue = callBigDlFunc(self.bigdl_type, "textSetToDistributed", self.value, sc)
+        return DistributedTextSet(jvalue=jvalue)
+
+    def to_local(self):
+        """
+        Convert to a LocalTextSet
+        
+        :return: LocalTextSet
+        """
+        if self.is_local():
+            jvalue = self.value
+        else:
+            jvalue = callBigDlFunc(self.bigdl_type, "textSetToLocal", self.value)
+        return LocalTextSet(jvalue=jvalue)
+
     def get_word_index(self):
         """
         Get the word index dictionary of the TextSet.
@@ -190,10 +218,7 @@ class TextSet(JavaValue):
         :return: TextSet.
         """
         jvalue = callBigDlFunc(bigdl_type, "readTextSet", path, sc, min_partitions)
-        if sc:
-            return DistributedTextSet(jvalue=jvalue)
-        else:
-            return LocalTextSet(jvalue=jvalue)
+        return TextSet(jvalue=jvalue)
 
 
 class LocalTextSet(TextSet):
