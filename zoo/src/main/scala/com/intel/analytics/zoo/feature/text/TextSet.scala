@@ -138,6 +138,10 @@ abstract class TextSet {
 
   private var wordIndex: Map[String, Int] = _
 
+  /**
+   * Get the word index map of this TextSet.
+   * If the TextSet hasn't been transformed from word to index, null will be returned.
+   */
   def getWordIndex: Map[String, Int] = wordIndex
 
   def setWordIndex(map: Map[String, Int]): this.type = {

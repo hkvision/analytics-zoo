@@ -25,8 +25,8 @@ import scala.reflect.ClassTag
 /**
  * Each TextFeature keeps information of a single text record.
  * It can include various status of a text,
- * e.g. original text content, category label, words after tokenization,
- * index representation of tokens, BigDL Sample representation and so on.
+ * e.g. original text content, category label, tokens, index representation
+ * of tokens, BigDL Sample representation, prediction result and so on.
  * It uses a HashMap to store all these data.
  * Each key is a string that can be used to identify the corresponding value.
  */
