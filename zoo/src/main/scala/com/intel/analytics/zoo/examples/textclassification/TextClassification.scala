@@ -50,10 +50,10 @@ object TextClassification {
         .text("The size of each word vector, 50 or 100 or 200 or 300 for GloVe")
         .action((x, c) => c.copy(tokenLength = x))
       opt[Int]("sequenceLength")
-        .text("The length of a sequence")
+        .text("The length of each sequence")
         .action((x, c) => c.copy(sequenceLength = x))
       opt[Int]("maxWordsNum")
-        .text("The maximum number of words")
+        .text("The maximum number of words to be taken into consideration")
         .action((x, c) => c.copy(maxWordsNum = x))
       opt[String]("encoder")
         .text("The encoder for the input sequence, cnn or lstm or gru")
@@ -68,7 +68,7 @@ object TextClassification {
         .text("The number of samples per gradient update")
         .action((x, c) => c.copy(batchSize = x))
       opt[Int]("nbEpoch")
-        .text("The number of iterations to train the model")
+        .text("The number of epochs to train the model")
         .action((x, c) => c.copy(nbEpoch = x))
       opt[Double]('l', "learningRate")
         .text("The learning rate for the TextClassifier model")
@@ -84,7 +84,7 @@ object TextClassification {
       val textSet = TextSet.read(param.baseDir + "/20news-18828/")
         .toDistributed(sc, param.partitionNum)
       val transformed = textSet.tokenize().normalize().shapeSequence(param.sequenceLength)
-        .word2idx().genSample()
+        .word2idx(removeTopN = 10, maxWordsNum = param.maxWordsNum).genSample()
       val Array(trainTextSet, valTextSet) = transformed.randomSplit(
         Array(param.trainingSplit, 1 - param.trainingSplit))
 
@@ -108,8 +108,10 @@ object TextClassification {
         metrics = List(new Accuracy()))
       model.fit(trainTextSet, batchSize = param.batchSize,
         nbEpoch = param.nbEpoch, validationData = valTextSet)
-      val predictSet = model.predict(valTextSet, batchPerThread = param.partitionNum)
 
+      val predictSet = model.predict(valTextSet, batchPerThread = param.partitionNum)
+      println("Probability distributions of the first five texts in validation set:")
+      predictSet.toDistributed().rdd.take(5).map(_.getPredict.toTensor).foreach(println)
       sc.stop()
     }
   }

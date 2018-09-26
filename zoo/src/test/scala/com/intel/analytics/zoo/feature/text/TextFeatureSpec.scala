@@ -32,6 +32,7 @@ class TextFeatureSpec extends FlatSpec with Matchers {
     require(feature.keys() == HashSet("label", "text"))
     require(feature.getTokens == null)
     require(feature.getSample == null)
+    require(feature.getPredict == null)
   }
 
   "TextFeature without label" should "work properly" in {

@@ -97,28 +97,32 @@ abstract class TextSet {
   }
 
   /**
-   * Shape the sequence of tokens to a fixed length.
+   * Shape the sequence of tokens to a fixed length. Padding element will be "##".
    * See SequenceShaper for more details.
    */
   def shapeSequence(
      len: Int,
-     truncMode: TruncMode = TruncMode.pre,
-     padElement: String = "##"): TextSet = {
-    transform(SequenceShaper(len, truncMode, padElement))
+     truncMode: TruncMode = TruncMode.pre): TextSet = {
+    transform(SequenceShaper(len, truncMode))
   }
 
   /**
-   * Map word tokens to index tokens.
-   * All words occurred will be given an index and index starts from 1.
+   * Map word tokens to indices.
+   * Index will start from 1 and corresponds to the occurrence frequency of each word sorted
+   * in descending order.
    * See WordIndexer for more details.
-   *
    * After word2idx, you can get the wordIndex map by calling 'getWordIndex'.
+   *
+   * @param removeTopN Integer. Remove the topN words with highest frequencies in the case
+   *                   where those are treated as stopwords. Default is 0, namely remove nothing.
+   * @param maxWordsNum Integer. The maximum number of words to be taken into consideration.
+   *                    Default is -1, namely all words will be considered.
    */
-  def word2idx(): TextSet = {
+  def word2idx(removeTopN: Int = 0, maxWordsNum: Int = -1): TextSet = {
     if (wordIndex != null) {
-      TextSet.logger.info("wordIndex already exists. Using the existing wordIndex")
+      TextSet.logger.warn("wordIndex already exists. Using the existing wordIndex")
     } else {
-      generateWordIndexMap()
+      generateWordIndexMap(removeTopN, maxWordsNum)
     }
     transform(WordIndexer(wordIndex))
   }
@@ -132,9 +136,11 @@ abstract class TextSet {
   }
 
   /**
-   * Give each word occurred an index starting from 1.
+   * Generate wordIndex map based on sorted word frequencies in descending order.
+   * Result map stored in 'wordIndex'.
    */
-  protected def generateWordIndexMap(): Unit
+  protected def generateWordIndexMap(
+      removeTopN: Int = 0, maxWordsNum: Int = 5000): Unit
 
   private var wordIndex: Map[String, Int] = _
 
@@ -232,11 +238,15 @@ object TextSet {
     textSet
   }
 
-  // Given an array of words, zip each word with its corresponding index.
-  // Return a wordIndex map. Index starts from 1.
-  def zipWordIndex(words: Array[String]): Map[String, Int] = {
-    val indexes = Range(1, words.length + 1)
-    words.zip(indexes).toMap
+  /**
+   * Zip word with its corresponding index. Index starts from 1.
+   * @param frequencies Array of words, each with its occurrence frequency in descending order.
+   * @return WordIndex map.
+   */
+  def wordIndexFromFrequencies(frequencies: Array[(String, Int)]): Map[String, Int] = {
+    val indexes = Range(1, frequencies.length + 1)
+    frequencies.zip(indexes).map{item =>
+      (item._1._1, item._2)}.toMap
   }
 }
 
@@ -272,9 +282,14 @@ class LocalTextSet(var array: Array[TextFeature]) extends TextSet {
     throw new UnsupportedOperationException("LocalTextSet doesn't support randomSplit for now")
   }
 
-  override def generateWordIndexMap(): Unit = {
-    val frequencies = array.flatMap(_[Array[String]](TextFeature.tokens)).distinct
-    val wordIndex = TextSet.zipWordIndex(frequencies)
+  override def generateWordIndexMap(
+    removeTopN: Int = 0, maxWordsNum: Int = -1): Unit = {
+    var frequencies = array.flatMap(_.getTokens).filter(_ != "##")  // "##" is the padElement.
+      .groupBy(identity).mapValues(_.length).toArray.sortBy(- _._2).drop(removeTopN)
+    if (maxWordsNum > 0) {
+      frequencies = frequencies.take(maxWordsNum)
+    }
+    val wordIndex = TextSet.wordIndexFromFrequencies(frequencies)
     setWordIndex(wordIndex)
   }
 }
@@ -311,10 +326,15 @@ class DistributedTextSet(var rdd: RDD[TextFeature]) extends TextSet {
     rdd.randomSplit(weights).map(TextSet.rdd)
   }
 
-  override def generateWordIndexMap(): Unit = {
-    val words = rdd.flatMap(_[Array[String]](TextFeature.tokens)).distinct().collect()
+  override def generateWordIndexMap(
+    removeTopN: Int = 0, maxWordsNum: Int = -1): Unit = {
+    var frequencies = rdd.flatMap(_.getTokens).filter(_ != "##")  // "##" is the padElement.
+      .map(word => (word, 1)).reduceByKey(_ + _).sortBy(- _._2).collect().drop(removeTopN)
+    if (maxWordsNum > 0) {
+      frequencies = frequencies.take(maxWordsNum)
+    }
     rdd.persist()
-    val wordIndex = TextSet.zipWordIndex(words)
+    val wordIndex = TextSet.wordIndexFromFrequencies(frequencies)
     val wordIndexBC = rdd.sparkContext.broadcast(wordIndex)
     setWordIndex(wordIndexBC.value)
   }

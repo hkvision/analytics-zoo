@@ -68,8 +68,7 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     require(wordIndex.toArray.length == 9)
     require(wordIndex.keySet == HashSet("friend", "please", "annotate", "my", "text",
       "some", "sentence", "for", "test"))
-    require(wordIndex.values.min == 1)
-    require(wordIndex.values.max == 9)
+    require(wordIndex("my") == 1)
 
     val features = transformed.toDistributed().rdd.collect()
     require(features.length == 2)
@@ -81,14 +80,15 @@ class TextSetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     val local = TextSet.array(genFeatures())
     require(local.isLocal)
 
-    val transformed =
-      local.tokenize().normalize().shapeSequence(len = 10).word2idx().genSample()
+    val transformed = local.tokenize().normalize().shapeSequence(len = 10)
+      .word2idx(removeTopN = 1).genSample()
     require(transformed.isLocal)
 
     val wordIndex = transformed.getWordIndex
-    require(wordIndex.toArray.length == 14)
+    require(wordIndex.toArray.length == 12)
     require(wordIndex.keySet.contains("hello"))
     require(!wordIndex.keySet.contains("Hello"))
+    require(!wordIndex.keySet.contains("##"))
 
     val features = transformed.toLocal().array
     require(features.length == 2)

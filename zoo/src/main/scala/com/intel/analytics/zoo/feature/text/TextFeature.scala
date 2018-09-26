@@ -17,6 +17,7 @@
 package com.intel.analytics.zoo.feature.text
 
 import com.intel.analytics.bigdl.dataset.Sample
+import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import org.apache.log4j.Logger
 
 import scala.collection.{Set, mutable}
@@ -107,6 +108,12 @@ class TextFeature extends Serializable {
    * If the TextFeature hasn't been transformed to Sample, null will be returned.
    */
   def getSample: Sample[Float] = apply[Sample[Float]](TextFeature.sample)
+
+  /**
+   * Get the prediction probability distribution of the TextFeature.
+   * If the TextFeature hasn't been predicted by a model, null will be returned.
+   */
+  def getPredict: Activity = apply[Activity](TextFeature.predict)
 }
 
 object TextFeature {

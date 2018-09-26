@@ -256,9 +256,8 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
   def textSetShapeSequence(
       textSet: TextSet,
       len: Int,
-      mode: String,
-      padElement: String): TextSet = {
-    textSet.shapeSequence(len, toScalaTruncMode(mode), padElement)
+      mode: String): TextSet = {
+    textSet.shapeSequence(len, toScalaTruncMode(mode))
   }
 
   def textSetWord2idx(
