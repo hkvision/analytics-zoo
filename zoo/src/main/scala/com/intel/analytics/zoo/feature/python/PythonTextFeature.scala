@@ -18,11 +18,13 @@ package com.intel.analytics.zoo.feature.python
 
 import java.util.{List => JList, Map => JMap}
 
-import com.intel.analytics.bigdl.python.api.{PythonBigDL, Sample}
+import com.intel.analytics.bigdl.python.api.{JTensor, PythonBigDL, Sample}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.dataset.{Sample => JSample}
+import com.intel.analytics.bigdl.nn.abstractnn.Activity
 import com.intel.analytics.zoo.feature.text.TruncMode.TruncMode
 import com.intel.analytics.zoo.feature.text._
+import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
@@ -118,5 +120,153 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
 
   def createTextFeatureToSample(): TextFeatureToSample = {
     TextFeatureToSample()
+  }
+
+  def createLocalTextSet(texts: JList[String], labels: JList[Int]): LocalTextSet = {
+    require(texts != null, "texts of a TextSet can't be null")
+    val features = if (labels != null) {
+      require(texts.size() == labels.size(), "texts and labels of a TextSet " +
+        "should have the same size")
+      texts.asScala.toArray[String].zip(labels.asScala.toArray[Int]).map{feature =>
+        createTextFeature(feature._1, feature._2)
+      }
+    }
+    else {
+      texts.asScala.toArray.map(createTextFeature)
+    }
+    TextSet.array(features)
+  }
+
+  def createDistributedTextSet(
+      texts: JavaRDD[String],
+      labels: JavaRDD[Int]): DistributedTextSet = {
+    require(texts != null, "texts of a TextSet can't be null")
+    val features = if (labels != null) {
+      texts.rdd.zip(labels.rdd).map{feature =>
+        createTextFeature(feature._1, feature._2)
+      }
+    }
+    else {
+      texts.rdd.map(createTextFeature)
+    }
+    TextSet.rdd(features)
+  }
+
+  def readTextSet(path: String, sc: JavaSparkContext, minPartitions: Int): TextSet = {
+    if (sc == null) {
+      TextSet.read(path, null, minPartitions)
+    }
+    else {
+      TextSet.read(path, sc.sc, minPartitions)
+    }
+  }
+
+  def textSetGetWordIndex(textSet: TextSet): JMap[String, Int] = {
+    val res = textSet.getWordIndex
+    if (res == null) {
+      null
+    }
+    else {
+      res.asJava
+    }
+  }
+
+  def textSetIsDistributed(textSet: TextSet): Boolean = {
+    textSet.isDistributed
+  }
+
+  def textSetIsLocal(textSet: TextSet): Boolean = {
+    textSet.isLocal
+  }
+
+  def localTextSetGetTexts(textSet: LocalTextSet): JList[String] = {
+    textSet.array.map(_.getText).toList.asJava
+  }
+
+  def localTextSetGetLabels(textSet: LocalTextSet): JList[Int] = {
+    textSet.array.map(_.getLabel).toList.asJava
+  }
+
+  def localTextSetGetPredicts(textSet: LocalTextSet): JList[JList[JTensor]] = {
+    textSet.array.map{feature =>
+      if (feature.contains(TextFeature.predict)) {
+        activityToJTensors(feature[Activity](TextFeature.predict))
+      }
+      else {
+        null
+      }
+    }.toList.asJava
+  }
+
+  def localTextSetGetSamples(textSet: LocalTextSet): JList[Sample] = {
+    textSet.array.map{feature =>
+      if (feature.contains(TextFeature.sample)) {
+        toPySample(feature.getSample.asInstanceOf[JSample[T]])
+      }
+      else {
+        null
+      }
+    }.toList.asJava
+  }
+
+  def distributedTextSetGetTexts(textSet: DistributedTextSet): JavaRDD[String] = {
+    textSet.rdd.map(_.getText).toJavaRDD()
+  }
+
+  def distributedTextSetGetLabels(textSet: DistributedTextSet): JavaRDD[Int] = {
+    textSet.rdd.map(_.getLabel).toJavaRDD()
+  }
+
+  def distributedTextSetGetPredicts(textSet: DistributedTextSet): JavaRDD[JList[JTensor]] = {
+    textSet.rdd.map{feature =>
+      if (feature.contains(TextFeature.predict)) {
+        activityToJTensors(feature[Activity](TextFeature.predict))
+      }
+      else {
+        null
+      }
+    }.toJavaRDD()
+  }
+
+  def distributedTextSetGetSamples(textSet: DistributedTextSet): JavaRDD[Sample] = {
+    textSet.rdd.map{feature =>
+      if (feature.contains(TextFeature.sample)) {
+        toPySample(feature.getSample.asInstanceOf[JSample[T]])
+      }
+      else {
+        null
+      }
+    }.toJavaRDD()
+  }
+
+  def textSetRandomSplit(
+      textSet: TextSet,
+      weights: JList[Double]): JList[TextSet] = {
+    textSet.randomSplit(weights.asScala.toArray).toList.asJava
+  }
+
+  def textSetTokenize(textSet: TextSet): TextSet = {
+    textSet.tokenize()
+  }
+
+  def textSetNormalize(textSet: TextSet): TextSet = {
+    textSet.normalize()
+  }
+
+  def textSetShapeSequence(
+      textSet: TextSet,
+      len: Int,
+      mode: String,
+      padElement: String): TextSet = {
+    textSet.shapeSequence(len, toScalaTruncMode(mode), padElement)
+  }
+
+  def textSetWord2idx(
+      textSet: TextSet): TextSet = {
+    textSet.word2idx()
+  }
+
+  def textSetGenSample(textSet: TextSet): TextSet = {
+    textSet.genSample()
   }
 }
