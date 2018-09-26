@@ -46,7 +46,7 @@ class TextFeature(JavaValue):
     def get_text(self):
         """
         Get the text content of the TextFeature.
-        
+
         :return: String
         """
         return callBigDlFunc(self.bigdl_type, "textFeatureGetText", self.value)
@@ -55,7 +55,7 @@ class TextFeature(JavaValue):
         """
         Get the label of the TextFeature.
         If no label is stored, -1 will be returned.
-        
+
         :return: Int
         """
         return callBigDlFunc(self.bigdl_type, "textFeatureGetLabel", self.value)
@@ -63,7 +63,7 @@ class TextFeature(JavaValue):
     def has_label(self):
         """
         Whether the TextFeature contains label.
-        
+
         :return: Boolean
         """
         return callBigDlFunc(self.bigdl_type, "textFeatureHasLabel", self.value)
@@ -71,7 +71,7 @@ class TextFeature(JavaValue):
     def set_label(self, label):
         """
         Set the label for the TextFeature.
-        
+
         :param label: Int
         :return: The TextFeature with label.
         """
@@ -82,7 +82,7 @@ class TextFeature(JavaValue):
         """
         Get the tokens of the TextFeature.
         If text hasn't been segmented, None will be returned.
-        
+
         :return: List of String
         """
         return callBigDlFunc(self.bigdl_type, "textFeatureGetTokens", self.value)
@@ -91,7 +91,7 @@ class TextFeature(JavaValue):
         """
         Get the Sample representation of the TextFeature.
         If the TextFeature hasn't been transformed to Sample, None will be returned.
-        
+
         :return: BigDL Sample
         """
         return callBigDlFunc(self.bigdl_type, "textFeatureGetSample", self.value)
@@ -99,7 +99,7 @@ class TextFeature(JavaValue):
     def keys(self):
         """
         Get the keys that the TextFeature contains.
-        
+
         :return: List of String
         """
         return callBigDlFunc(self.bigdl_type, "textFeatureGetKeys", self.value)

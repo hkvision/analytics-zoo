@@ -50,6 +50,7 @@ class TextSet(JavaValue):
     def to_distributed(self, sc=None, partition_num=None):
         """
         Convert to a DistributedTextSet
+
         :return: DistributedTextSet
         """
         if self.is_distributed():
@@ -66,7 +67,7 @@ class TextSet(JavaValue):
     def to_local(self):
         """
         Convert to a LocalTextSet
-        
+
         :return: LocalTextSet
         """
         if self.is_local():
@@ -171,7 +172,8 @@ class TextSet(JavaValue):
         See WordIndexer for more details.
 
         :param remove_topN: Int. Remove the topN words with highest frequencies in the case
-                            where those are treated as stopwords. Default is 0, namely remove nothing.
+                            where those are treated as stopwords.
+                            Default is 0, namely remove nothing.
         :param max_words_num: Int. The maximum number of words to be taken into consideration.
                               Default is -1, namely all words will be considered.
         :return: TextSet after word2idx.
@@ -201,11 +203,12 @@ class TextSet(JavaValue):
         If sc is defined, read texts as DistributedTextSet from local file system or HDFS.
         If sc is None, read texts as LocalTextSet from local file system.
 
-        :param path: String. Folder path to texts. The folder structure is expected to be the following:
-               path
-                 |dir1 - text1, text2, ...
-                 |dir2 - text1, text2, ...
-                 |dir3 - text1, text2, ...
+        :param path: String. Folder path to texts.
+               The folder structure is expected to be the following:
+                   path
+                     |dir1 - text1, text2, ...
+                     |dir2 - text1, text2, ...
+                     |dir3 - text1, text2, ...
                Under the target path, there ought to be N subdirectories (dir1 to dirN). Each
                subdirectory represents a category and contains all texts that belong to such
                category. Each category will be a given a label according to its position in the
