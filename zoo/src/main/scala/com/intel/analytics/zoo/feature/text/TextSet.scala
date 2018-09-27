@@ -64,6 +64,9 @@ abstract class TextSet {
 
   /**
    * Convert to a DistributedTextSet.
+   *
+   * Need to specify SparkContext to convert a LocalTextSet to a DistributedTextSet.
+   * In this case, you may also want to specify partitionNum.
    */
   def toDistributed(sc: SparkContext = null): DistributedTextSet
 

@@ -31,17 +31,12 @@ class TextFeature(JavaValue):
     of tokens, BigDL Sample representation, prediction result and so on.
     """
     def __init__(self, text=None, label=None, jvalue=None, bigdl_type="float"):
-        self.bigdl_type = bigdl_type
-        if jvalue:
-            self.value = jvalue
-        else:
+        if text is not None:
             assert isinstance(text, six.string_types), "text of a TextFeature should be a string"
-            if label is not None:
-                self.value = callBigDlFunc(bigdl_type, JavaValue.jvm_class_constructor(self),
-                                           text, int(label))
-            else:
-                self.value = callBigDlFunc(bigdl_type, JavaValue.jvm_class_constructor(self),
-                                           text)
+        if label is not None:
+            super(TextFeature, self).__init__(jvalue, bigdl_type, text, int(label))
+        else:
+            super(TextFeature, self).__init__(jvalue, bigdl_type, text)
 
     def get_text(self):
         """

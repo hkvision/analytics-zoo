@@ -22,6 +22,7 @@ import com.intel.analytics.bigdl.python.api.{JTensor, PythonBigDL, Sample}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.dataset.{Sample => JSample}
 import com.intel.analytics.bigdl.nn.abstractnn.Activity
+import com.intel.analytics.zoo.feature.common.Preprocessing
 import com.intel.analytics.zoo.feature.text.TruncMode.TruncMode
 import com.intel.analytics.zoo.feature.text.{DistributedTextSet, _}
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
@@ -179,15 +180,23 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
     textSet.isLocal
   }
 
-  def localTextSetGetTexts(textSet: LocalTextSet): JList[String] = {
+  def textSetGetTexts(textSet: LocalTextSet): JList[String] = {
     textSet.array.map(_.getText).toList.asJava
   }
 
-  def localTextSetGetLabels(textSet: LocalTextSet): JList[Int] = {
+  def textSetGetTexts(textSet: DistributedTextSet): JavaRDD[String] = {
+    textSet.rdd.map(_.getText).toJavaRDD()
+  }
+
+  def textSetGetLabels(textSet: LocalTextSet): JList[Int] = {
     textSet.array.map(_.getLabel).toList.asJava
   }
 
-  def localTextSetGetPredicts(textSet: LocalTextSet): JList[JList[JTensor]] = {
+  def textSetGetLabels(textSet: DistributedTextSet): JavaRDD[Int] = {
+    textSet.rdd.map(_.getLabel).toJavaRDD()
+  }
+
+  def textSetGetPredicts(textSet: LocalTextSet): JList[JList[JTensor]] = {
     textSet.array.map{feature =>
       if (feature.contains(TextFeature.predict)) {
         activityToJTensors(feature[Activity](TextFeature.predict))
@@ -198,26 +207,7 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
     }.toList.asJava
   }
 
-  def localTextSetGetSamples(textSet: LocalTextSet): JList[Sample] = {
-    textSet.array.map{feature =>
-      if (feature.contains(TextFeature.sample)) {
-        toPySample(feature.getSample.asInstanceOf[JSample[T]])
-      }
-      else {
-        null
-      }
-    }.toList.asJava
-  }
-
-  def distributedTextSetGetTexts(textSet: DistributedTextSet): JavaRDD[String] = {
-    textSet.rdd.map(_.getText).toJavaRDD()
-  }
-
-  def distributedTextSetGetLabels(textSet: DistributedTextSet): JavaRDD[Int] = {
-    textSet.rdd.map(_.getLabel).toJavaRDD()
-  }
-
-  def distributedTextSetGetPredicts(textSet: DistributedTextSet): JavaRDD[JList[JTensor]] = {
+  def textSetGetPredicts(textSet: DistributedTextSet): JavaRDD[JList[JTensor]] = {
     textSet.rdd.map{feature =>
       if (feature.contains(TextFeature.predict)) {
         activityToJTensors(feature[Activity](TextFeature.predict))
@@ -228,7 +218,18 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
     }.toJavaRDD()
   }
 
-  def distributedTextSetGetSamples(textSet: DistributedTextSet): JavaRDD[Sample] = {
+  def textSetGetSamples(textSet: LocalTextSet): JList[Sample] = {
+    textSet.array.map{feature =>
+      if (feature.contains(TextFeature.sample)) {
+        toPySample(feature.getSample.asInstanceOf[JSample[T]])
+      }
+      else {
+        null
+      }
+    }.toList.asJava
+  }
+
+  def textSetGetSamples(textSet: DistributedTextSet): JavaRDD[Sample] = {
     textSet.rdd.map{feature =>
       if (feature.contains(TextFeature.sample)) {
         toPySample(feature.getSample.asInstanceOf[JSample[T]])
@@ -286,6 +287,12 @@ class PythonTextFeature[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pyth
 
   def textSetToLocal(textSet: TextSet): LocalTextSet = {
     textSet.toLocal()
+  }
+
+  def transformTextSet(
+      transformer: Preprocessing[TextFeature, TextFeature],
+      imageSet: TextSet): TextSet = {
+    imageSet.transform(transformer)
   }
 
 }

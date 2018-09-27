@@ -84,7 +84,7 @@ class TestTextSet:
         assert local_set.get_labels() == self.labels
 
         transformed = local_set.tokenize().normalize().shape_sequence(10)\
-            .word2idx(max_words_num=10).gen_sample()
+            .word2idx(max_words_num=10).transform(TextFeatureToSample())
         assert transformed.is_local()
         word_index = transformed.get_word_index()
         assert len(word_index) == 10
@@ -118,7 +118,8 @@ class TestTextSet:
         test_texts = sets[1].get_texts().collect()
         assert set(train_texts + test_texts) == set(self.texts)
 
-        transformed = distributed_set.tokenize().normalize().shape_sequence(5)\
+        tokenized = Tokenizer()(distributed_set)
+        transformed = tokenized.normalize().shape_sequence(5)\
             .word2idx().gen_sample()
         word_index = transformed.get_word_index()
         assert len(word_index) == 10

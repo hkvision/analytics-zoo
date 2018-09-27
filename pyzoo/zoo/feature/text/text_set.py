@@ -23,13 +23,8 @@ class TextSet(JavaValue):
     """
     TextSet wraps a set of TextFeature.
     """
-    def __init__(self, jvalue, bigdl_type="float"):
-        self.value = jvalue
-        self.bigdl_type = bigdl_type
-        if self.is_local():
-            self.text_set = LocalTextSet(jvalue=self.value)
-        else:
-            self.text_set = DistributedTextSet(jvalue=self.value)
+    def __init__(self, jvalue, bigdl_type="float", *args):
+        super(TextSet, self).__init__(jvalue, bigdl_type, *args)
 
     def is_local(self):
         """
@@ -49,7 +44,10 @@ class TextSet(JavaValue):
 
     def to_distributed(self, sc=None, partition_num=None):
         """
-        Convert to a DistributedTextSet
+        Convert to a DistributedTextSet.
+
+        Need to specify SparkContext to convert a LocalTextSet to a DistributedTextSet.
+        In this case, you may also want to specify partitionNum.
 
         :return: DistributedTextSet
         """
@@ -66,7 +64,7 @@ class TextSet(JavaValue):
 
     def to_local(self):
         """
-        Convert to a LocalTextSet
+        Convert to a LocalTextSet.
 
         :return: LocalTextSet
         """
@@ -90,9 +88,10 @@ class TextSet(JavaValue):
         Get the text contents of a TextSet.
 
         :return: List of String for LocalTextSet.
-                 RDD of String for a DistributedTextSet.
+                 RDD of String for DistributedTextSet.
         """
-        return self.text_set.get_texts()
+        # return self.text_set.get_texts()
+        return callBigDlFunc(self.bigdl_type, "textSetGetTexts", self.value)
 
     def get_labels(self):
         """
@@ -100,9 +99,9 @@ class TextSet(JavaValue):
         If a text doesn't have a label, its corresponding position will be -1.
 
         :return: List of int for LocalTextSet.
-                 RDD of int for a DistributedTextSet.
+                 RDD of int for DistributedTextSet.
         """
-        return self.text_set.get_labels()
+        return callBigDlFunc(self.bigdl_type, "textSetGetLabels", self.value)
 
     def get_predicts(self):
         """
@@ -112,7 +111,11 @@ class TextSet(JavaValue):
         :return: List of list of numpy array for LocalTextSet.
                  RDD of list of numpy array for DistributedTextSet.
         """
-        return self.text_set.get_predicts()
+        predicts = callBigDlFunc(self.bigdl_type, "textSetGetPredicts", self.value)
+        if isinstance(predicts, RDD):
+            return predicts.map(lambda predict: _process_predict_result(predict))
+        else:
+            return [_process_predict_result(predict) for predict in predicts]
 
     def get_samples(self):
         """
@@ -122,7 +125,7 @@ class TextSet(JavaValue):
         :return: List of Sample for LocalTextSet.
                  RDD of Sample for DistributedTextSet.
         """
-        return self.text_set.get_samples()
+        return callBigDlFunc(self.bigdl_type, "textSetGetSamples", self.value)
 
     def random_split(self, weights):
         """
@@ -232,31 +235,14 @@ class LocalTextSet(TextSet):
 
         # Arguments:
         texts: List of String. Each element is the content of a text.
-        labels: List of int or None if texts doesn't have labels.
+        labels: List of int or None if texts don't have labels.
         """
-        if jvalue:
-            self.value = jvalue
-        else:
+        if texts is not None:
             assert all(isinstance(text, six.string_types) for text in texts),\
                 "texts for LocalTextSet should be list of string"
-            if labels is not None:
-                labels = [int(label) for label in labels]
-            self.value = callBigDlFunc(bigdl_type, JavaValue.jvm_class_constructor(self),
-                                       texts, labels)
-        self.bigdl_type = bigdl_type
-
-    def get_texts(self):
-        return callBigDlFunc(self.bigdl_type, "localTextSetGetTexts", self.value)
-
-    def get_labels(self):
-        return callBigDlFunc(self.bigdl_type, "localTextSetGetLabels", self.value)
-
-    def get_predicts(self):
-        predicts = callBigDlFunc(self.bigdl_type, "localTextSetGetPredicts", self.value)
-        return [_process_predict_result(predict) for predict in predicts]
-
-    def get_samples(self):
-        return callBigDlFunc(self.bigdl_type, "localTextSetGetSamples", self.value)
+        if labels is not None:
+            labels = [int(label) for label in labels]
+        super(LocalTextSet, self).__init__(jvalue, bigdl_type, texts, labels)
 
 
 class DistributedTextSet(TextSet):
@@ -267,31 +253,14 @@ class DistributedTextSet(TextSet):
 
         # Arguments:
         texts: RDD of String. Each element is the content of a text.
-        labels: RDD of int or None if texts doesn't have labels.
+        labels: RDD of int or None if texts don't have labels.
         """
-        if jvalue:
-            self.value = jvalue
-        else:
+        if texts is not None:
             assert isinstance(texts, RDD), "texts for DistributedTextSet should be RDD of String"
-            if labels is not None:
-                assert isinstance(labels, RDD), "labels for DistributedTextSet should be RDD of int"
-                labels = labels.map(lambda x: int(x))
-            self.value = callBigDlFunc(bigdl_type, JavaValue.jvm_class_constructor(self),
-                                       texts, labels)
-        self.bigdl_type = bigdl_type
-
-    def get_texts(self):
-        return callBigDlFunc(self.bigdl_type, "distributedTextSetGetTexts", self.value)
-
-    def get_labels(self):
-        return callBigDlFunc(self.bigdl_type, "distributedTextSetGetLabels", self.value)
-
-    def get_predicts(self):
-        predicts = callBigDlFunc(self.bigdl_type, "distributedTextSetGetPredicts", self.value)
-        return predicts.map(lambda predict: _process_predict_result(predict))
-
-    def get_samples(self):
-        return callBigDlFunc(self.bigdl_type, "distributedTextSetGetSamples", self.value)
+        if labels is not None:
+            assert isinstance(labels, RDD), "labels for DistributedTextSet should be RDD of int"
+            labels = labels.map(lambda x: int(x))
+        super(DistributedTextSet, self).__init__(jvalue, bigdl_type, texts, labels)
 
 
 def _process_predict_result(predict):
