@@ -21,7 +21,7 @@ from pyspark import RDD
 
 class TextSet(JavaValue):
     """
-    TextSet wraps a set of TextFeature.
+    TextSet wraps a set of texts with status.
     """
     def __init__(self, jvalue, bigdl_type="float", *args):
         super(TextSet, self).__init__(jvalue, bigdl_type, *args)
@@ -228,7 +228,9 @@ class TextSet(JavaValue):
 
 
 class LocalTextSet(TextSet):
-
+    """
+    LocalTextSet is comprised of lists.
+    """
     def __init__(self, texts=None, labels=None, jvalue=None, bigdl_type="float"):
         """
         Create a LocalTextSet using texts and labels.
@@ -246,7 +248,9 @@ class LocalTextSet(TextSet):
 
 
 class DistributedTextSet(TextSet):
-
+    """
+    DistributedTextSet is comprised of RDDs.
+    """
     def __init__(self, texts=None, labels=None, jvalue=None, bigdl_type="float"):
         """
         Create a DistributedTextSet using texts and labels.
