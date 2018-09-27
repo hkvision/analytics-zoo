@@ -33,7 +33,7 @@ class Preprocessing(JavaValue):
 
     def __call__(self, input):
         """
-        Transform ImageSet or TextSet
+        Transform ImageSet or TextSet.
         """
         # move the import here to break circular import
         if "zoo.feature.image.imageset.ImageSet" not in sys.modules:
