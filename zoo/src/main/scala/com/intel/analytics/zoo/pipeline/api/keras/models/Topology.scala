@@ -485,6 +485,29 @@ abstract class KerasNet[T: ClassTag](implicit ev: TensorNumeric[T])
   }
 
   /**
+   * Use a model to do prediction in local mode.
+   *
+   * @param x Prediction data, array of Sample.
+   * @param batchPerThread The total batchSize is batchPerThread * numOfCores.
+   */
+  def predict(
+      x: Array[Sample[T]],
+      batchPerThread: Int)(implicit ev: TensorNumeric[T]): Array[Activity] = {
+    val localPredictor = LocalPredictor(this, batchPerCore = batchPerThread)
+    localPredictor.predict(x)
+  }
+
+  /**
+   * Use a model to do prediction in local mode.
+   * The total batch size is batchPerThread * numOfCores, and batchPerThread is 4 by default.
+   * @param x Prediction data, array of Sample.
+   */
+  def predict(
+      x: Array[Sample[T]])(implicit ev: TensorNumeric[T]): Array[Activity] = {
+    predict(x, batchPerThread = 4)
+  }
+
+  /**
    * Use a model to do prediction on ImageSet.
    *
    * @param x Prediction data, ImageSet.
@@ -519,29 +542,17 @@ abstract class KerasNet[T: ClassTag](implicit ev: TensorNumeric[T])
    *        batchPerThread * rdd.getNumPartitions(distributed mode)
    *        or batchPerThread * numOfCores(local mode)
    */
-  // TODO: Add Predictor for Text.
   def predict(
       x: TextSet,
       batchPerThread: Int): TextSet = {
     x match {
       case distributed: DistributedTextSet =>
-        val rdd = distributed.rdd
-        val predictRDD = predict(
-          rdd.map(_.getSample).asInstanceOf[RDD[Sample[T]]], batchPerThread)
-        val resRDD = rdd.zip(predictRDD).map{case (feature, predict) =>
-          feature(TextFeature.predict) = predict
-          feature
-        }
-        TextSet.rdd(resRDD).setWordIndex(x.getWordIndex)
+        TextPredictor[T](this, batchPerThread).predict(distributed)
       case local: LocalTextSet =>
-        val localSet = toDataSet(local, batchPerThread * EngineRef.getCoreNumber())
-          .asInstanceOf[LocalDataSet[MiniBatch[T]]]
-        val predictArr = predict(localSet, batchPerThread)
-        val resArr = local.array.zip(predictArr).map{case (feature, predict) =>
-          feature(TextFeature.predict) = predict
-          feature
-        }
-        TextSet.array(resArr).setWordIndex(x.getWordIndex)
+        val predictor = LocalTextPredictor[T](this, batchPerThread)
+        val result = predictor.predict(local)
+        predictor.shutdown()
+        result
     }
   }
 
