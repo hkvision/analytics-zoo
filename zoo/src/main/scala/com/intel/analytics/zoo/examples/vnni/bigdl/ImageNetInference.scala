@@ -56,7 +56,8 @@ object ImageNetInference {
       val evaluationSet = ImageNetDataSet.valDataSet(param.folder,
         sc, 224, param.batchSize).toDistributed().data(train = false)
 
-      val model = ImageClassifier.loadModel[Float](param.model).quantize().evaluate()
+      val model = ImageClassifier.loadModel[Float](param.model)
+      model.model.quantize().evaluate()
 
       val result = model.evaluate(evaluationSet, Array(new Top1Accuracy[Float],
         new Top5Accuracy[Float]))
