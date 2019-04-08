@@ -19,6 +19,7 @@ package com.intel.analytics.zoo.examples.vnni.bigdl
 import com.intel.analytics.bigdl.nn._
 import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.tensor.Tensor
+import com.intel.analytics.bigdl.utils.Engine
 import org.apache.log4j.Logger
 import scopt.OptionParser
 
@@ -52,11 +53,12 @@ object Perf {
       val batchSize = params.batchSize
       val inputShape = Array(batchSize, 3, 224, 224)
       val input = Tensor(inputShape).rand()
+      Engine.init
 
       // fp32 model running on MKLDNN
-//      val fp32model = Module.loadModule[Float](params.model) // .quantize()
-//      val model = ConversionUtils.convert[Float](fp32model)
-//      model.evaluate()
+      //      val fp32model = Module.loadModule[Float](params.model) // .quantize()
+      //      val model = ConversionUtils.convert[Float](fp32model)
+      //      model.evaluate()
 
       val model = Module.loadModule[Float](params.model).quantize()
 
