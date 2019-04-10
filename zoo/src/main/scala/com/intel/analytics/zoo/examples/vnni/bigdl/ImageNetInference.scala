@@ -37,6 +37,7 @@ object ImageNetInference {
   val logger: Logger = Logger.getLogger(getClass)
 
   def main(args: Array[String]): Unit = {
+    System.setProperty("bigdl.engineType", "mkldnn")
     val parser = new OptionParser[ImageNetInferenceParams]("ImageNet Int8 Example") {
       opt[String]('f', "folder")
         .text("The path to the imagenet dataset for inference")
@@ -57,9 +58,9 @@ object ImageNetInference {
         sc, 224, param.batchSize).toDistributed().data(train = false)
 
       val model = ImageClassifier.loadModel[Float](param.model)
-      model.model.quantize().evaluate()
+      model.setEvaluateStatus()
 
-      val result = model.evaluate(evaluationSet, Array(new Top1Accuracy[Float],
+      val result = model.model.evaluate(evaluationSet, Array(new Top1Accuracy[Float],
         new Top5Accuracy[Float]))
 
       result.foreach(r => println(s"${r._2} is ${r._1}"))

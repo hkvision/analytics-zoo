@@ -20,6 +20,7 @@ import com.intel.analytics.bigdl.nn._
 import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.Engine
+import com.intel.analytics.zoo.models.image.imageclassification.ImageClassifier
 import org.apache.log4j.Logger
 import scopt.OptionParser
 
@@ -49,21 +50,19 @@ object Perf {
         .action((v, p) => p.copy(iteration = v))
     }
 
-    parser.parse(args, ResNet50PerfParams()).foreach { params =>
-      val batchSize = params.batchSize
+    parser.parse(args, ResNet50PerfParams()).foreach { param =>
+      val batchSize = param.batchSize
       val inputShape = Array(batchSize, 3, 224, 224)
       val input = Tensor(inputShape).rand()
       Engine.init
 
-      // fp32 model running on MKLDNN
-      //      val fp32model = Module.loadModule[Float](params.model) // .quantize()
-      //      val model = ConversionUtils.convert[Float](fp32model)
-      //      model.evaluate()
-
-      val model = Module.loadModule[Float](params.model).quantize()
+//      val model = Module.loadModule[Float](param.model).quantize()
+//      model.evaluate()
+      val model = ImageClassifier.loadModel[Float](param.model)
+      model.setEvaluateStatus()
 
       var iteration = 0
-      while (iteration < params.iteration) {
+      while (iteration < param.iteration) {
         val start = System.nanoTime()
         model.forward(input)
         val timeUsed = System.nanoTime() - start

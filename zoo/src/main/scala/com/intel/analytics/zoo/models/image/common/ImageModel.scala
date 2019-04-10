@@ -87,7 +87,8 @@ object ImageModel {
    */
   def loadModel[T: ClassTag](path: String, weightPath: String = null, modelType: String = "")
     (implicit ev: TensorNumeric[T]): ImageModel[T] = {
-    val model = Module.loadModule[T](path, weightPath)
+    // TODO: Not proper to add quantize here
+    val model = Module.loadModule[T](path, weightPath).quantize()
     val imageModel = if (model.isInstanceOf[ImageModel[T]]) {
       model.asInstanceOf[ImageModel[T]]
     } else {
