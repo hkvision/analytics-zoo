@@ -134,7 +134,6 @@ object ImagenetConfig {
   }
 
   def resnetNewPreprocessor(): Preprocessing[ImageFeature, ImageFeature] = {
-    ImagePixelBytesToMat() ->
       ImageRandomResize(256, 256) ->
       ImageRandomCropper(224, 224, false, CropCenter) ->
       ImageChannelScaledNormalizer(104, 117, 123, 0.0078125) ->

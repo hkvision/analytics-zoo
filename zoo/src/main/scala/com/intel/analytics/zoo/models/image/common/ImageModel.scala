@@ -49,7 +49,7 @@ abstract class ImageModel[T: ClassTag]()(implicit ev: TensorNumeric[T])
     val predictConfig = if (null == configure) config else configure
 
     val result = if (predictConfig == null) {
-      ImageSet.fromImageFrame(predictImage(image.toImageFrame()))
+      ImageSet.fromImageFrame(model.predictImage(image.toImageFrame()))
     } else {
       // apply preprocessing if preProcessor is defined
       val data = if (null != predictConfig.preProcessor) {
@@ -58,8 +58,9 @@ abstract class ImageModel[T: ClassTag]()(implicit ev: TensorNumeric[T])
         image
       }
 
-      val imageSet = ImageSet.fromImageFrame(predictImage(data.toImageFrame(), batchPerPartition =
-        predictConfig.batchPerPartition, featurePaddingParam = predictConfig.featurePaddingParam))
+      val imageSet = ImageSet.fromImageFrame(model.predictImage(data.toImageFrame(),
+        batchPerPartition = predictConfig.batchPerPartition,
+        featurePaddingParam = predictConfig.featurePaddingParam))
 
       if (null != predictConfig.postProcessor) {
         imageSet -> predictConfig.postProcessor
@@ -84,7 +85,7 @@ abstract class ImageModel[T: ClassTag]()(implicit ev: TensorNumeric[T])
       } else {
         image
       }
-      val dataset = image.toDataSet[T]() -> SampleToMiniBatch[T](batchSize)
+      val dataset = data.toDataSet[T]() -> SampleToMiniBatch[T](batchSize)
       model.evaluate(dataset.toDistributed().data(train = false), vMethods)
     }
   }
