@@ -16,7 +16,6 @@
 
 package com.intel.analytics.zoo.examples.vnni.bigdl
 
-import com.intel.analytics.bigdl.nn._
 import com.intel.analytics.bigdl.numeric.NumericFloat
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.utils.Engine
@@ -56,9 +55,7 @@ object Perf {
       val input = Tensor(inputShape).rand()
       Engine.init
 
-//      val model = Module.loadModule[Float](param.model).quantize()
-//      model.evaluate()
-      val model = ImageClassifier.loadModel[Float](param.model)
+      val model = ImageClassifier.loadModel[Float](param.model, quantize = true)
       model.setEvaluateStatus()
 
       var iteration = 0
