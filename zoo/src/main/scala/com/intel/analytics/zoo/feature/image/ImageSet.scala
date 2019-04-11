@@ -16,12 +16,18 @@
 
 package com.intel.analytics.zoo.feature.image
 
+import java.nio.ByteBuffer
+
 import com.intel.analytics.bigdl.DataSet
+import com.intel.analytics.bigdl.dataset.DataSet.SeqFileFolder.readLabel
 import com.intel.analytics.bigdl.dataset._
+import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.transform.vision.image._
+import com.intel.analytics.bigdl.utils.T
 import com.intel.analytics.zoo.common.Utils
 import com.intel.analytics.zoo.feature.common.Preprocessing
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.io.Text
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.opencv.imgcodecs.Imgcodecs
@@ -209,6 +215,23 @@ object ImageSet {
       ImageSet.array(images)
     }
     transform(imageSet, resizeH, resizeW, imageCodec)
+  }
+
+  def readSeqFiles(path: String, sc: SparkContext,
+                   minPartitions: Int = 1, classNum: Int = 1000): DistributedImageSet = {
+    val images = sc.sequenceFile(path, classOf[Text], classOf[Text], minPartitions).map(image => {
+      val rawBytes = image._2.copyBytes()
+      val label = Tensor[Float](T(readLabel(image._1).toFloat))
+      val imgBuffer = ByteBuffer.wrap(rawBytes)
+      val width = imgBuffer.getInt
+      val height = imgBuffer.getInt
+      val bytes = new Array[Byte](3 * width * height)
+      System.arraycopy(imgBuffer.array(), 8, bytes, 0, bytes.length)
+      val imf = ImageFeature(bytes, label)
+      imf(ImageFeature.originalSize) = (height, width, 3)
+      imf
+    }).filter(_[Tensor[Float]](ImageFeature.label).valueAt(1) <= classNum)
+    ImageSet.rdd(images)
   }
 
   /**

@@ -16,11 +16,11 @@
 
 package com.intel.analytics.zoo.examples.vnni.bigdl
 
-import com.intel.analytics.bigdl.models.resnet.ImageNetDataSet
 import com.intel.analytics.bigdl.optim.{Top1Accuracy, Top5Accuracy}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric._
 import com.intel.analytics.bigdl.utils.LoggerFilter
 import com.intel.analytics.zoo.common.NNContext
+import com.intel.analytics.zoo.feature.image.ImageSet
 import com.intel.analytics.zoo.models.image.imageclassification.ImageClassifier
 import org.apache.log4j.{Level, Logger}
 import scopt.OptionParser
@@ -53,15 +53,10 @@ object ImageNetInference {
     }
     parser.parse(args, ImageNetInferenceParams()).map(param => {
       val sc = NNContext.initNNContext("ImageNet2012 with Int8 Inference Example")
-
-      val evaluationSet = ImageNetDataSet.valDataSet(param.folder,
-        sc, 224, param.batchSize).toDistributed().data(train = false)
-
-      val model = ImageClassifier.loadModel[Float](param.model)
-      model.setEvaluateStatus()
-
-      val result = model.model.evaluate(evaluationSet, Array(new Top1Accuracy[Float],
-        new Top5Accuracy[Float]))
+      val images = ImageSet.readSeqFiles(param.folder, sc)
+      val model = ImageClassifier.loadModel[Float](param.model, quantize = true)
+      val result = model.evaluateImageSet(images, param.batchSize,
+        Array(new Top1Accuracy[Float], new Top5Accuracy[Float]))
 
       result.foreach(r => println(s"${r._2} is ${r._1}"))
 
