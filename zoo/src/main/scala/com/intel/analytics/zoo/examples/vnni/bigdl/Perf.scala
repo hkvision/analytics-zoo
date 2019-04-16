@@ -26,7 +26,7 @@ import scopt.OptionParser
 
 case class ResNet50PerfParams(model: String = "",
                               batchSize: Int = 32,
-                              iteration: Int = 2000)
+                              iteration: Int = 1000)
 
 object Perf {
 
@@ -36,7 +36,7 @@ object Perf {
     System.setProperty("bigdl.localMode", "true")
     System.setProperty("bigdl.engineType", "mkldnn")
 
-    val parser = new OptionParser[ResNet50PerfParams]("Int8 Performance Test") {
+    val parser = new OptionParser[ResNet50PerfParams]("ResNet50 Int8 Performance Test") {
       opt[String]('m', "model")
         .text("The path to the int8 quantized ResNet50 model snapshot")
         .action((v, p) => p.copy(model = v))
@@ -51,8 +51,8 @@ object Perf {
 
     parser.parse(args, ResNet50PerfParams()).foreach { param =>
       val batchSize = param.batchSize
-      val inputShape = Array(batchSize, 3, 224, 224)
-      val input = Tensor(inputShape).rand()
+      val batchInput = Tensor(Array(batchSize, 3, 224, 224)).rand()
+      val singleInput = Tensor(Array(1, 3, 224, 224)).rand()
       Engine.init
 
       val model = ImageClassifier.loadModel[Float](param.model, quantize = true)
@@ -61,11 +61,15 @@ object Perf {
       var iteration = 0
       while (iteration < param.iteration) {
         val start = System.nanoTime()
-        model.forward(input)
+        model.forward(batchInput)
         val timeUsed = System.nanoTime() - start
-
         val throughput = "%.2f".format(batchSize.toFloat / (timeUsed / 1e9))
         logger.info(s"Iteration $iteration, takes $timeUsed ns, throughput is $throughput imgs/sec")
+
+        val start1 = System.nanoTime()
+        model.forward(singleInput)
+        val latency = System.nanoTime() - start1
+        logger.info(s"Iteration $iteration, latency is ${latency / 1e6} ms")
 
         iteration += 1
       }
