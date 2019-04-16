@@ -66,9 +66,17 @@ object Perf {
         val throughput = "%.2f".format(batchSize.toFloat / (timeUsed / 1e9))
         logger.info(s"Iteration $iteration, takes $timeUsed ns, throughput is $throughput imgs/sec")
 
-        val start1 = System.nanoTime()
-        model.forward(singleInput)
-        val latency = System.nanoTime() - start1
+        iteration += 1
+      }
+
+      val model2 = ImageClassifier.loadModel[Float](param.model, quantize = true)
+      model2.setEvaluateStatus()
+
+      iteration = 0
+      while (iteration < param.iteration) {
+        val start = System.nanoTime()
+        model2.forward(singleInput)
+        val latency = System.nanoTime() - start
         logger.info(s"Iteration $iteration, latency is ${latency / 1e6} ms")
 
         iteration += 1
