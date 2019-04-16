@@ -25,7 +25,8 @@ import scopt.OptionParser
 case class ImageClassificationParams(folder: String = "./",
                                      model: String = "",
                                      topN: Int = 5,
-                                     partitionNum: Int = 4)
+                                     partitionNum: Int = 4,
+                                     quantize: Boolean = true)
 
 object Predict {
   Logger.getLogger("org").setLevel(Level.ERROR)
@@ -52,25 +53,32 @@ object Predict {
       opt[Int]("partitionNum")
         .text("The number of partitions to cut the dataset into")
         .action((x, c) => c.copy(partitionNum = x))
+      opt[Boolean]("quantize")
+        .action((v, p) => p.copy(quantize = v))
     }
     parser.parse(args, ImageClassificationParams()).map(param => {
+      val start = System.nanoTime()
       val sc = NNContext.initNNContext("ResNet50 Int8 Inference Example")
+      val start1 = System.nanoTime()
       val images = ImageSet.read(param.folder)
-      val model = ImageClassifier.loadModel[Float](param.model, quantize = true)
+      val duration1 = System.nanoTime() - start1
+      logger.info(s"Read images time: ${duration1 / 1e9} seconds")
+
+      val start2 = System.nanoTime()
+      val model = ImageClassifier.loadModel[Float](param.model, quantize = param.quantize)
+      val duration2 = System.nanoTime() - start2
+      logger.info(s"Load model time: ${duration2 / 1e9} seconds")
       val output = model.predictImageSet(images)
+
+      val start3 = System.nanoTime()
       val labelOutput = LabelOutput(model.getConfig().labelMap, "clses",
         "probs", probAsInput = false)
       val result = labelOutput(output).toLocal().array
+      val duration3 = System.nanoTime() - start3
+      logger.info(s"Postprocessing time: ${duration3 / 1e9} seconds")
 
-      logger.info(s"Prediction result")
-      result.foreach(imageFeature => {
-        logger.info(s"image : ${imageFeature.uri}, top ${param.topN}")
-        val clses = imageFeature("clses").asInstanceOf[Array[String]]
-        val probs = imageFeature("probs").asInstanceOf[Array[Float]]
-        for (i <- 0 until param.topN) {
-          logger.info(s"\t class : ${clses(i)}, credit : ${probs(i)}")
-        }
-      })
+      val duration = System.nanoTime() - start
+      logger.info(s"Total time: ${duration / 1e9} seconds")
 
       sc.stop()
     })

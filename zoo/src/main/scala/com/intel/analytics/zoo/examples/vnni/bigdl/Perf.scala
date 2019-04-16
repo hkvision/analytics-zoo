@@ -26,7 +26,8 @@ import scopt.OptionParser
 
 case class ResNet50PerfParams(model: String = "",
                               batchSize: Int = 32,
-                              iteration: Int = 1000)
+                              iteration: Int = 1000,
+                              quantize: Boolean = true)
 
 object Perf {
 
@@ -44,6 +45,8 @@ object Perf {
       opt[Int]('b', "batchSize")
         .text("Batch size of input data")
         .action((v, p) => p.copy(batchSize = v))
+      opt[Boolean]("quantize")
+        .action((v, p) => p.copy(quantize = v))
       opt[Int]('i', "iteration")
         .text("Iteration of perf test. The result will be average of each iteration time cost")
         .action((v, p) => p.copy(iteration = v))
@@ -55,7 +58,7 @@ object Perf {
       val singleInput = Tensor(Array(1, 3, 224, 224)).rand()
       Engine.init
 
-      val model = ImageClassifier.loadModel[Float](param.model, quantize = true)
+      val model = ImageClassifier.loadModel[Float](param.model, quantize = param.quantize)
       model.setEvaluateStatus()
 
       var iteration = 0
