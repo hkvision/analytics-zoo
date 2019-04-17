@@ -37,7 +37,7 @@ object Predict {
   val logger: Logger = Logger.getLogger(getClass)
 
   def main(args: Array[String]): Unit = {
-    System.setProperty("bigdl.engineType", "mkldnn")
+//    System.setProperty("bigdl.engineType", "mkldnn")
     val parser = new OptionParser[ImageClassificationParams]("ResNet50 Int8 Inference Example") {
       opt[String]('f', "folder")
         .text("The path to the image data")
