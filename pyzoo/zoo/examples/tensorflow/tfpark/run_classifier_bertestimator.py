@@ -294,27 +294,43 @@ if __name__ == '__main__':
     processor = MrpcProcessor()
     label_list = processor.get_labels()
     tokenizer = tokenization.FullTokenizer(options.bert_base_dir + "/vocab.txt")
-    train_examples = processor.get_train_examples(options.data_dir)
-    train_rdd = generate_input_rdd(train_examples, label_list, options.max_seq_length, tokenizer, "train")
-    train_input_fn = bert_input_fn(train_rdd, options.max_seq_length, options.batch_size)
-    eval_examples = processor.get_dev_examples(options.data_dir)
-    eval_rdd = generate_input_rdd(eval_examples, label_list, options.max_seq_length, tokenizer, "eval")
-    eval_input_fn = bert_input_fn(eval_rdd, options.max_seq_length, options.batch_size)
-    test_examples = processor.get_test_examples(options.data_dir)
-    test_rdd = generate_input_rdd(test_examples, label_list, options.max_seq_length, tokenizer, "test")
-    test_input_fn = bert_input_fn(test_rdd, options.max_seq_length, options.batch_size)
 
     estimator = BERTClassifier(len(label_list), bert_config_file=options.bert_base_dir + "/bert_config.json",
                                init_checkpoint=options.bert_base_dir + "/bert_model.ckpt",
                                optimizer=tf.train.AdamOptimizer(options.learning_rate),
                                model_dir=options.output_dir)
+
+    # Training
+    train_examples = processor.get_train_examples(options.data_dir)
+    train_rdd = generate_input_rdd(train_examples, label_list, options.max_seq_length, tokenizer, "train")
+    train_input_fn = bert_input_fn(train_rdd, options.max_seq_length, options.batch_size)
+    train_start_time = time.time()
     estimator.train(train_input_fn, steps=len(train_examples)*options.nb_epoch//options.batch_size)
+    train_end_time = time.time()
+
+    # Evaluation
+    eval_examples = processor.get_dev_examples(options.data_dir)
+    eval_rdd = generate_input_rdd(eval_examples, label_list, options.max_seq_length, tokenizer, "eval")
+    eval_input_fn = bert_input_fn(eval_rdd, options.max_seq_length, options.batch_size)
+    eval_start_time = time.time()
     result = estimator.evaluate(eval_input_fn, eval_methods=["acc"])
     print(result)
+    eval_end_time = time.time()
+
+    # Inference
+    test_examples = processor.get_test_examples(options.data_dir)
+    test_rdd = generate_input_rdd(test_examples, label_list, options.max_seq_length, tokenizer, "test")
+    test_input_fn = bert_input_fn(test_rdd, options.max_seq_length, options.batch_size)
+    pred_start_time = time.time()
     predictions = estimator.predict(test_input_fn)
+    predictions.collect()
     for prediction in predictions.take(5):
         print(prediction)
+    pred_end_time = time.time()
 
     end_time = time.time()
-    print("Time elapsed: %s minutes" % ((end_time-start_time)/60))
+    print("Train time: %s minutes" % ((train_end_time - train_start_time) / 60))
+    print("Eval time: %s minutes" % ((eval_end_time - eval_start_time) / 60))
+    print("Inference time: %s minutes" % ((pred_end_time - pred_start_time) / 60))
+    print("Time elapsed: %s minutes" % ((end_time - start_time) / 60))
     print("Finished")
