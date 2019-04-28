@@ -208,6 +208,7 @@ class TFEstimator(object):
                     inputs = nest.flatten(result._original_tensors[0])
                     outputs = nest.flatten(spec.predictions)
                     tfnet = TFNet.from_session(sess, inputs=inputs, outputs=outputs)
+                    self.tfnet = tfnet
 
                     rdd = result.get_prediction_data()
 
@@ -215,6 +216,18 @@ class TFEstimator(object):
                     return results
 
         return self.estimator.predict(input_fn, checkpoint_path=checkpoint_path)
+
+    def forward(self, input, batch_size):
+        import time
+        start_time = time.time()
+        output = self.tfnet.forward(input)
+        end_time = time.time()
+        takes = end_time - start_time
+        if batch_size > 1:
+            throughput = batch_size / takes
+            print("Takes %s seconds, throughput is %s records/sec" % (takes, throughput))
+        if batch_size == 1:
+            print("Latency %s ms" % (takes * 1000))
 
     @staticmethod
     def _to_bigdl_metric(metric):
