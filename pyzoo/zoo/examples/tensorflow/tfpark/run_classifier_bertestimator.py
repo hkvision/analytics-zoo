@@ -287,6 +287,9 @@ if __name__ == '__main__':
     parser.add_option("--max_seq_length", dest="max_seq_length", type=int, default=128)
     parser.add_option("-e", "--nb_epoch", dest="nb_epoch", type=int, default=3)
     parser.add_option("-l", "--learning_rate", dest="learning_rate", type=float, default=2e-5)
+    parser.add_option("--do_train", dest="do_train", type=int, default=1)
+    parser.add_option("--do_eval", dest="do_eval", type=int, default=1)
+    parser.add_option("--do_predict", dest="do_predict", type=int, default=1)
 
     (options, args) = parser.parse_args(sys.argv)
     sc = init_nncontext("BERT MRPC Classification Example")
@@ -301,36 +304,41 @@ if __name__ == '__main__':
                                model_dir=options.output_dir)
 
     # Training
-    train_examples = processor.get_train_examples(options.data_dir)
-    train_rdd = generate_input_rdd(train_examples, label_list, options.max_seq_length, tokenizer, "train")
-    train_input_fn = bert_input_fn(train_rdd, options.max_seq_length, options.batch_size)
-    train_start_time = time.time()
-    estimator.train(train_input_fn, steps=len(train_examples)*options.nb_epoch//options.batch_size)
-    train_end_time = time.time()
+    if options.do_train:
+        train_examples = processor.get_train_examples(options.data_dir)
+        train_rdd = generate_input_rdd(train_examples, label_list, options.max_seq_length, tokenizer, "train")
+        train_input_fn = bert_input_fn(train_rdd, options.max_seq_length, options.batch_size)
+        train_start_time = time.time()
+        estimator.train(train_input_fn, steps=len(train_examples)*options.nb_epoch//options.batch_size)
+        train_end_time = time.time()
+        print("Train time: %s minutes" % ((train_end_time - train_start_time) / 60))
 
     # Evaluation
-    eval_examples = processor.get_dev_examples(options.data_dir)
-    eval_rdd = generate_input_rdd(eval_examples, label_list, options.max_seq_length, tokenizer, "eval")
-    eval_input_fn = bert_input_fn(eval_rdd, options.max_seq_length, options.batch_size)
-    eval_start_time = time.time()
-    result = estimator.evaluate(eval_input_fn, eval_methods=["acc"])
-    print(result)
-    eval_end_time = time.time()
+    if options.do_eval:
+        eval_examples = processor.get_dev_examples(options.data_dir)
+        eval_rdd = generate_input_rdd(eval_examples, label_list, options.max_seq_length, tokenizer, "eval")
+        eval_input_fn = bert_input_fn(eval_rdd, options.max_seq_length, options.batch_size)
+        eval_start_time = time.time()
+        result = estimator.evaluate(eval_input_fn, eval_methods=["acc"])
+        print(result)
+        eval_end_time = time.time()
+        print("Eval time: %s minutes" % ((eval_end_time - eval_start_time) / 60))
 
     # Inference
-    test_examples = processor.get_test_examples(options.data_dir)
-    test_rdd = generate_input_rdd(test_examples, label_list, options.max_seq_length, tokenizer, "test")
-    test_input_fn = bert_input_fn(test_rdd, options.max_seq_length, options.batch_size)
-    pred_start_time = time.time()
-    predictions = estimator.predict(test_input_fn)
-    predictions.collect()
-    for prediction in predictions.take(5):
-        print(prediction)
-    pred_end_time = time.time()
+    if options.do_predict:
+        test_examples = processor.get_test_examples(options.data_dir)
+        test_rdd = generate_input_rdd(test_examples, label_list, options.max_seq_length, tokenizer, "test")
+        test_input_fn = bert_input_fn(test_rdd, options.max_seq_length, options.batch_size)
+        predictions = estimator.predict(test_input_fn)
+        pred_start_time = time.time()
+        predictions.collect()
+        pred_end_time = time.time()
+        print("Inference time: %s minutes" % ((pred_end_time - pred_start_time) / 60))
+        print("Inference throughput: %s records/s" % (len(test_examples) / (pred_end_time - pred_start_time)))
+        for prediction in predictions.take(5):
+            print(prediction)
 
     end_time = time.time()
-    print("Train time: %s minutes" % ((train_end_time - train_start_time) / 60))
-    print("Eval time: %s minutes" % ((eval_end_time - eval_start_time) / 60))
-    print("Inference time: %s minutes" % ((pred_end_time - pred_start_time) / 60))
+
     print("Time elapsed: %s minutes" % ((end_time - start_time) / 60))
     print("Finished")
