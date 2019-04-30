@@ -139,6 +139,8 @@ class TFEstimator(object):
                     else:
                         sess.run(tf.global_variables_initializer())
 
+                    conf = tf.ConfigProto(intra_op_parallelism_threads=14, inter_op_parallelism_threads=2)
+
                     opt = TFOptimizer.from_loss(spec.loss, optim_method, session=sess)
                     opt.optimize(MaxIteration(steps))
                     sess.run(assign_step, feed_dict={add_step_input: steps})
