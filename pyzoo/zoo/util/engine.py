@@ -104,7 +104,7 @@ def __prepare_analytics_zoo_env():
     os.environ["KMP_BLOCKTIME"] = "0"
     os.environ["KMP_AFFINITY"] = "granularity=fine,verbose,compact,1,0"
     os.environ["KMP_SETTINGS"] = "1"
-    # os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OMP_NUM_THREADS"] = "1"
 
 
 def get_analytics_zoo_classpath():
