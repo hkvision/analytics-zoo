@@ -654,8 +654,8 @@ object TFNet {
 
   val defaultSessionConfig = SessionConfig()
 
-  case class SessionConfig(intraOpParallelismThreads: Int = 14,
-                           interOpParallelismThreads: Int = 2,
+  case class SessionConfig(intraOpParallelismThreads: Int = 1,
+                           interOpParallelismThreads: Int = 1,
                            usePerSessionThreads: Boolean = true) {
 
     // Ideally we should use the following code, however, importing tensorflow proto
