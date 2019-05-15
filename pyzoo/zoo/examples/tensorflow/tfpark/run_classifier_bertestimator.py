@@ -20,6 +20,7 @@ from optparse import OptionParser
 import tensorflow as tf
 from zoo.common.nncontext import *
 from zoo.tfpark.text.estimator import BERTClassifier, bert_input_fn
+from zoo.pipeline.api.keras.optimizers import AdamWeightDecay
 from bert import tokenization
 
 
@@ -298,18 +299,23 @@ if __name__ == '__main__':
     label_list = processor.get_labels()
     tokenizer = tokenization.FullTokenizer(options.bert_base_dir + "/vocab.txt")
 
+    train_examples = processor.get_train_examples(options.data_dir)
+    steps = len(train_examples)*options.nb_epoch//options.batch_size
+
+    optimizer = AdamWeightDecay(lr=options.learning_rate, warmup_portion=0.1, total=steps)
+
     estimator = BERTClassifier(len(label_list), bert_config_file=options.bert_base_dir + "/bert_config.json",
                                init_checkpoint=options.bert_base_dir + "/bert_model.ckpt",
-                               optimizer=tf.train.AdamOptimizer(options.learning_rate),
+                               # optimizer=tf.train.AdamOptimizer(options.learning_rate),
+                               optimizer=optimizer,
                                model_dir=options.output_dir)
 
     # Training
     if options.do_train:
-        train_examples = processor.get_train_examples(options.data_dir)
         train_rdd = generate_input_rdd(train_examples, label_list, options.max_seq_length, tokenizer, "train")
         train_input_fn = bert_input_fn(train_rdd, options.max_seq_length, options.batch_size)
         train_start_time = time.time()
-        estimator.train(train_input_fn, steps=len(train_examples)*options.nb_epoch//options.batch_size)
+        estimator.train(train_input_fn, steps=steps)
         train_end_time = time.time()
         print("Train time: %s minutes" % ((train_end_time - train_start_time) / 60))
 

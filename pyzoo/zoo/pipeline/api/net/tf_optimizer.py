@@ -199,6 +199,7 @@ with variable_creator_scope():
                                               IdentityCriterion(),
                                               batch_size=batch_size,
                                               optim_method=self.optim_method)
+        self.optimizer.set_gradclip_l2norm(1.0)
 
     @staticmethod
     def _get_arguments_from_loss(loss, optim_method, session, val_outputs, val_labels, val_method):
@@ -286,7 +287,9 @@ with variable_creator_scope():
         if isinstance(koptim_method, TFOptimizer):
             koptim_method = koptim_method.optimizer
 
-        if isinstance(koptim_method, koptimizers.Optimizer):
+        if isinstance(koptim_method, boptimizer.OptimMethod):
+            return koptim_method
+        elif isinstance(koptim_method, koptimizers.Optimizer):
             lr = float(K.eval(koptim_method.lr))
             decay = float(K.eval(koptim_method.decay))
             if isinstance(koptim_method, koptimizers.Adagrad):
