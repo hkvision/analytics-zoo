@@ -51,16 +51,22 @@ abstract class ImageModel[T: ClassTag]()(implicit ev: TensorNumeric[T])
     val result = if (predictConfig == null) {
       ImageSet.fromImageFrame(model.predictImage(image.toImageFrame()))
     } else {
+      val start1 = System.nanoTime()
       // apply preprocessing if preProcessor is defined
       val data = if (null != predictConfig.preProcessor) {
         image -> predictConfig.preProcessor
       } else {
         image
       }
+      val duration1 = System.nanoTime() - start1
+      ImageModel.logger.info(s"Preprocessing time: ${duration1 / 1e9} seconds")
 
+      val start2 = System.nanoTime()
       val imageSet = ImageSet.fromImageFrame(model.predictImage(data.toImageFrame(),
         batchPerPartition = predictConfig.batchPerPartition,
         featurePaddingParam = predictConfig.featurePaddingParam))
+      val duration2 = System.nanoTime() - start2
+      ImageModel.logger.info(s"Prediction time: ${duration2 / 1e9} seconds")
 
       if (null != predictConfig.postProcessor) {
         imageSet -> predictConfig.postProcessor

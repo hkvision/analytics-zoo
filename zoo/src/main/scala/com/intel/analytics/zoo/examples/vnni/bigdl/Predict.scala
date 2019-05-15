@@ -51,23 +51,29 @@ object Predict {
     }
     parser.parse(args, PredictParams()).map(param => {
       Engine.init
+      val start1 = System.nanoTime()
       val images = ImageSet.read(param.folder, imageCodec = Imgcodecs.CV_LOAD_IMAGE_COLOR)
+      val duration1 = System.nanoTime() - start1
+      logger.info(s"Read images time: ${duration1 / 1e9} seconds")
       val model = ImageClassifier.loadModel[Float](param.model)
       logger.info(s"Start inference on images under ${param.folder}...")
       val output = model.predictImageSet(images)
       val labelOutput = LabelOutput(model.getConfig().labelMap, probAsOutput = false)
+      val start2 = System.nanoTime()
       val results = labelOutput(output).toLocal().array
+      val duration2 = System.nanoTime() - start2
+      logger.info(s"Postprocessing time: ${duration2 / 1e9} seconds")
 
-      logger.info(s"Prediction results:")
-      results.foreach(imageFeature => {
-        logger.info(s"image: ${imageFeature.uri}, top ${param.topN}")
-        val classes = imageFeature("classes").asInstanceOf[Array[String]]
-        val probs = imageFeature("probs").asInstanceOf[Array[Float]]
-        for (i <- 0 until param.topN) {
-          logger.info(s"\t class: ${classes(i)}, credit: ${probs(i)}")
-        }
-      })
-      logger.info(s"Prediction finished.")
+//      logger.info(s"Prediction results:")
+//      results.foreach(imageFeature => {
+//        logger.info(s"image: ${imageFeature.uri}, top ${param.topN}")
+//        val classes = imageFeature("classes").asInstanceOf[Array[String]]
+//        val probs = imageFeature("probs").asInstanceOf[Array[Float]]
+//        for (i <- 0 until param.topN) {
+//          logger.info(s"\t class: ${classes(i)}, credit: ${probs(i)}")
+//        }
+//      })
+//      logger.info(s"Prediction finished.")
     })
   }
 }
