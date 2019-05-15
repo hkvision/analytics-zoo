@@ -18,7 +18,6 @@ package com.intel.analytics.zoo.feature.image
 
 import com.intel.analytics.bigdl.transform.vision.image.ImageFeature
 import com.intel.analytics.bigdl.transform.vision.image.augmentation.ChannelScaledNormalizer
-import com.intel.analytics.bigdl.transform.vision.image.opencv.OpenCVMat
 
 /**
  * Channel normalization with scale factor.
@@ -56,41 +55,6 @@ private[image] class InternalChannelScaledNormalizer(meanR: Int, meanG: Int,
   extends ChannelScaledNormalizer(meanR, meanG, meanB, scale) {
 
   override def transformMat(feature: ImageFeature): Unit = {
-//    val mat = feature.opencvMat()
-//    val toFloats = OpenCVMat.toFloatPixels(mat)
-//    val content = toFloats._1
-//    if (content.length % 3 != 0) {
-//      print(mat.channels())
-//      println(feature.uri())
-//    }
-//    super.transformMat(feature)
-    val mat = feature.opencvMat()
-    val floats = new Array[Float](mat.height() * mat.width() * 3)
-    val toFloats = OpenCVMat.toFloatPixels(mat, floats)
-    val content = toFloats._1
-    require(content.length % 3 == 0, "Content should be multiple of 3 channels")
-    var i = 0
-    val frameLength = content.length / 3
-    val height = toFloats._2
-    val width = toFloats._3
-    val bufferContent = new Array[Float](width * height * 3)
-
-    val channels = 3
-    val mean = Array(meanR, meanG, meanB)
-    var c = 0
-    while (c < channels) {
-      i = 0
-      while (i < frameLength) {
-        val data_index = c * frameLength + i
-        bufferContent(data_index) = ((content(data_index) - mean(c)) * scale).toFloat
-        i += 1
-      }
-      c += 1
-    }
-    if (mat != null) {
-      mat.release()
-    }
-    val newMat = OpenCVMat.fromFloats(bufferContent, height, width)
-    feature(ImageFeature.mat) = newMat
+    super.transformMat(feature)
   }
 }

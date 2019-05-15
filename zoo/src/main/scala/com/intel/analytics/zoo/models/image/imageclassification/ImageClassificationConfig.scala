@@ -24,6 +24,7 @@ import com.intel.analytics.bigdl.transform.vision.image.ImageFeature
 import com.intel.analytics.zoo.feature.common.Preprocessing
 import com.intel.analytics.zoo.feature.image._
 import com.intel.analytics.zoo.models.image.common.ImageConfigure
+import org.opencv.imgproc.Imgproc
 
 import scala.io.Source
 import scala.reflect.ClassTag
@@ -135,7 +136,11 @@ object ImagenetConfig {
 
   // Preprocessor for ResNet50 pre-trained in BigDL
   def bigdlResNetPreprocessor(): Preprocessing[ImageFeature, ImageFeature] = {
+<<<<<<< b8054b0d133968e0add425e15a4aefe1930a58d2
       ImageRandomResize(256, 256) ->
+=======
+      ImageResize(256, 260, Imgproc.INTER_CUBIC) ->
+>>>>>>> update imageresize and change imagecodec
       ImageCenterCrop(224, 224) ->
       ImageChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
       ImageMatToTensor() -> ImageSetToSample()
