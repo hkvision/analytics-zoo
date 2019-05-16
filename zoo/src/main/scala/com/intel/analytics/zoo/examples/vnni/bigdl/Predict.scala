@@ -16,7 +16,7 @@
 
 package com.intel.analytics.zoo.examples.vnni.bigdl
 
-import com.intel.analytics.bigdl.utils.Engine
+import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.feature.image.ImageSet
 import com.intel.analytics.zoo.models.image.imageclassification.{ImageClassifier, LabelOutput}
 import org.apache.log4j.{Level, Logger}
@@ -35,7 +35,7 @@ object Predict {
 
   def main(args: Array[String]): Unit = {
     System.setProperty("bigdl.engineType", "mkldnn")
-    System.setProperty("bigdl.localMode", "true")
+//    System.setProperty("bigdl.localMode", "true")
     val parser = new OptionParser[PredictParams]("ResNet50 Int8 Inference Example") {
       opt[String]('f', "folder")
         .text("The local folder path that contains images for prediction")
@@ -50,7 +50,7 @@ object Predict {
         .action((x, c) => c.copy(topN = x))
     }
     parser.parse(args, PredictParams()).map(param => {
-      Engine.init
+      val sc = NNContext.initNNContext("Int8 predict example")
       val start1 = System.nanoTime()
       val images = ImageSet.read(param.folder, imageCodec = Imgcodecs.CV_LOAD_IMAGE_COLOR)
       val duration1 = System.nanoTime() - start1
@@ -63,6 +63,7 @@ object Predict {
       val results = labelOutput(output).toLocal().array
       val duration2 = System.nanoTime() - start2
       logger.info(s"Postprocessing time: ${duration2 / 1e9} seconds")
+      sc.stop()
 
 //      logger.info(s"Prediction results:")
 //      results.foreach(imageFeature => {
