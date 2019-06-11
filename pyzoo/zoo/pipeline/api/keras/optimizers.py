@@ -15,8 +15,10 @@
 #
 
 from bigdl.util.common import *
-from bigdl.optim.optimizer import OptimMethod, Default
+from bigdl.optim.optimizer import DistriOptimizer as BDistriOptimizer, SGD, OptimMethod, Default
+from bigdl.util.common import JavaObject, callBigDlFunc
 from zoo.pipeline.api.keras.base import ZooKerasCreator
+from zoo.feature.common import FeatureSet
 
 if sys.version >= '3':
     long = int
@@ -105,3 +107,44 @@ class AdamWeightDecay(OptimMethod, ZooKerasCreator):
             epsilon,
             weight_decay)
         self.bigdl_type = bigdl_type
+
+
+class DistriOptimizer(BDistriOptimizer):
+    def __init__(self,
+                 model,
+                 training_rdd,
+                 criterion,
+                 end_trigger,
+                 batch_size,
+                 optim_method=None,
+                 bigdl_type="float"):
+        """
+        Create an optimizer.
+
+
+        :param model: the neural net model
+        :param training_data: the training dataset
+        :param criterion: the loss function
+        :param optim_method: the algorithm to use for optimization,
+           e.g. SGD, Adagrad, etc. If optim_method is None, the default algorithm is SGD.
+        :param end_trigger: when to end the optimization
+        :param batch_size: training batch size
+        """
+        if not optim_method:
+            optim_methods = {model.name(): SGD()}
+        elif isinstance(optim_method, OptimMethod):
+            optim_methods = {model.name(): optim_method}
+        elif isinstance(optim_method, JavaObject):
+            optim_methods = {model.name(): OptimMethod(optim_method, bigdl_type)}
+        else:
+            optim_methods = optim_method
+        if isinstance(training_rdd, RDD):
+            self.bigdl_type = bigdl_type
+            self.value = callBigDlFunc(self.bigdl_type, "createDistriOptimizerFromSampleRDD",
+                                       model.value, training_rdd, criterion,
+                                       optim_methods, end_trigger, batch_size)
+        elif isinstance(training_rdd, FeatureSet):
+            self.bigdl_type = bigdl_type
+            self.value = callBigDlFunc(self.bigdl_type, "createDistriOptimizerFromFeatureSet",
+                                       model.value, training_rdd, criterion,
+                                       optim_methods, end_trigger, batch_size)

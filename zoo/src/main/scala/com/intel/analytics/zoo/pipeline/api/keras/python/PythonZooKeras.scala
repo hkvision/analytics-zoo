@@ -18,12 +18,12 @@ package com.intel.analytics.zoo.pipeline.api.keras.python
 
 import java.util.{List => JList, Map => JMap}
 
-import com.intel.analytics.bigdl.{Criterion, Module}
-import com.intel.analytics.bigdl.dataset.{DataSet, LocalDataSet, MiniBatch}
+import com.intel.analytics.bigdl.Criterion
+import com.intel.analytics.bigdl.dataset.{DataSet, DistributedDataSet, LocalDataSet, MiniBatch, SampleToMiniBatch, Sample => JSample}
 
 import scala.collection.JavaConverters._
-import com.intel.analytics.bigdl.optim.{_}
-import com.intel.analytics.bigdl.python.api.{EvaluatedResult, JTensor, Sample}
+import com.intel.analytics.bigdl.optim._
+import com.intel.analytics.bigdl.python.api.{JTensor, Sample}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.nn.InitializationMethod
@@ -31,20 +31,20 @@ import com.intel.analytics.bigdl.nn.Container
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
 import com.intel.analytics.bigdl.nn.keras.{KerasLayer, KerasModel}
 import com.intel.analytics.bigdl.nn.{BatchNormalization => BNBatchNormalization}
-import com.intel.analytics.bigdl.utils.{Shape, Table}
+import com.intel.analytics.bigdl.transform.vision.image.{ImageFeature, ImageFeatureToMiniBatch}
 import com.intel.analytics.zoo.feature.image.ImageSet
 import com.intel.analytics.zoo.pipeline.api.autograd.{Constant, _}
 import com.intel.analytics.zoo.pipeline.api.keras.layers.{KerasLayerWrapper, _}
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.KerasUtils
-import com.intel.analytics.zoo.pipeline.api.keras.models.{KerasNet, Model, Sequential}
+import com.intel.analytics.zoo.pipeline.api.keras.models.{InternalDistriOptimizer, KerasNet, Model, Sequential}
 import com.intel.analytics.zoo.pipeline.api.keras.objectives._
 import com.intel.analytics.zoo.pipeline.api.keras.optimizers.{Adam, AdamWeightDecay}
 import org.apache.spark.api.java.JavaRDD
 import com.intel.analytics.zoo.common.PythonZoo
+import com.intel.analytics.zoo.feature.FeatureSet
 import com.intel.analytics.zoo.feature.text.TextSet
 import com.intel.analytics.zoo.models.common.ZooModel
 import com.intel.analytics.zoo.models.seq2seq.{Bridge, RNNDecoder, RNNEncoder}
-import com.intel.analytics.zoo.pipeline.api.Net
 import com.intel.analytics.zoo.pipeline.api.keras.{metrics => zmetrics}
 import com.intel.analytics.zoo.pipeline.api.net.GraphNet
 
@@ -1355,4 +1355,60 @@ class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
     new AdamWeightDecay[T](learningRate, warmupPortion, total, schedule, beta1, beta2,
       epsilon, weightDecay)
   }
+
+  def createDistriOptimizerFromSampleRDD(
+    model: AbstractModule[Activity, Activity, T],
+    trainingRdd: JavaRDD[Sample],
+    criterion: Criterion[T],
+    optimMethod: JMap[String, OptimMethod[T]],
+    endTrigger: Trigger,
+    batchSize: Int): Optimizer[T, MiniBatch[T]] = {
+    val sampleRDD = toJSample(trainingRdd)
+
+    val optimizer = new InternalDistriOptimizer(
+      _model = model,
+      _dataset = batching(DataSet.rdd(sampleRDD), batchSize)
+        .asInstanceOf[DistributedDataSet[MiniBatch[T]]],
+      _criterion = criterion
+    ).asInstanceOf[Optimizer[T, MiniBatch[T]]]
+    optimizer.setEndWhen(endTrigger)
+    optimizer.setOptimMethods(optimMethod.asScala.toMap)
+    optimizer
+  }
+
+  def createDistriOptimizerFromFeatureSet(model: AbstractModule[Activity, Activity, T],
+                                          trainDataSet: FeatureSet[JSample[T]],
+                                          criterion: Criterion[T],
+                                          optimMethod: JMap[String, OptimMethod[T]],
+                                          endTrigger: Trigger,
+                                          batchSize: Int): Optimizer[T, MiniBatch[T]] = {
+    val dataSet = trainDataSet -> SampleToMiniBatch[T](batchSize)
+
+    val optimizer = new InternalDistriOptimizer[T](
+      _model = model,
+      _dataset = dataSet.asInstanceOf[DistributedDataSet[MiniBatch[T]]],
+      _criterion = criterion
+    ).asInstanceOf[Optimizer[T, MiniBatch[T]]]
+    optimizer.setEndWhen(endTrigger)
+    optimizer.setOptimMethods(optimMethod.asScala.toMap)
+    optimizer
+  }
+
+//  def createDistriOptimizerFromFeatureSet(model: AbstractModule[Activity, Activity, T],
+//                                          trainDataSet: FeatureSet[ImageFeature],
+//                                          criterion: Criterion[T],
+//                                          optimMethod: JMap[String, OptimMethod[T]],
+//                                          endTrigger: Trigger,
+//                                          batchSize: Int): Optimizer[T, MiniBatch[T]] = {
+//    val dataSet = trainDataSet -> ImageFeatureToMiniBatch[T](batchSize)
+//
+//    val optimizer = new InternalDistriOptimizer[T](
+//      _model = model,
+//      _dataset = dataSet.asInstanceOf[DistributedDataSet[MiniBatch[T]]],
+//      _criterion = criterion
+//    ).asInstanceOf[Optimizer[T, MiniBatch[T]]]
+//    optimizer.setEndWhen(endTrigger)
+//    optimizer.setOptimMethods(optimMethod.asScala.toMap)
+//    optimizer
+//  }
 }

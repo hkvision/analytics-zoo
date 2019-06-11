@@ -25,6 +25,7 @@ from bigdl.nn.criterion import Criterion
 from bigdl.nn.layer import Layer
 from bigdl.util.common import to_list, JavaValue
 from bigdl.optim.optimizer import EveryEpoch, MaxEpoch, Optimizer
+from zoo.pipeline.api.keras.optimizers import DistriOptimizer
 from zoo.pipeline.api.keras.engine.topology import to_bigdl_metric
 from zoo.pipeline.api.net.utils import _find_placeholders, _check_the_same
 from zoo.util import nest
@@ -200,11 +201,17 @@ with variable_creator_scope():
                                           val_method)
         else:
             training_rdd = sample_rdd
-            self.optimizer = Optimizer.create(self.training_helper_layer,
-                                              training_rdd,
-                                              IdentityCriterion(),
-                                              batch_size=batch_size,
-                                              optim_method=self.optim_method)
+            # self.optimizer = Optimizer.create(self.training_helper_layer,
+            #                                   training_rdd,
+            #                                   IdentityCriterion(),
+            #                                   batch_size=batch_size,
+            #                                   optim_method=self.optim_method)
+            self.optimizer = DistriOptimizer(self.training_helper_layer,
+                                                     training_rdd,
+                                                     IdentityCriterion(),
+                                                     batch_size=batch_size,
+                                                     optim_method=self.optim_method,
+                                                     end_trigger=None)
 
         if self.clip_norm:
             self.optimizer.set_gradclip_l2norm(self.clip_norm)

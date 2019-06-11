@@ -17,7 +17,8 @@
 package com.intel.analytics.zoo.feature.python
 
 import com.intel.analytics.bigdl.DataSet
-import com.intel.analytics.bigdl.dataset.Transformer
+import com.intel.analytics.bigdl.dataset.{Transformer, Sample => JSample}
+import com.intel.analytics.bigdl.python.api.Sample
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
 import com.intel.analytics.bigdl.transform.vision.image._
 import com.intel.analytics.zoo.common.PythonZoo
@@ -43,9 +44,9 @@ class PythonFeatureSet[T: ClassTag](implicit ev: TensorNumeric[T]) extends Pytho
   }
 
   def createFeatureSetFromRDD(
-        data: JavaRDD[Any],
-        memoryType: String): FeatureSet[Any] = {
-    FeatureSet.rdd(data, MemoryType.fromString(memoryType))
+        data: JavaRDD[Sample],
+        memoryType: String): FeatureSet[JSample[T]] = {
+    FeatureSet.rdd(toJSample(data), MemoryType.fromString(memoryType))
   }
 
   def transformFeatureSet(featureSet: FeatureSet[Any],

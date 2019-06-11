@@ -14,8 +14,13 @@
 # limitations under the License.
 #
 
+import tensorflow as tf
+from tensorflow.keras.layers import Lambda, Bidirectional, LSTM, Input, Dense
+from tensorflow.keras.models import Model
 import nlp_architect.models.ner_crf as ner_model
+from bert import modeling
 from zoo.tfpark.text.keras.text_model import TextKerasModel
+from zoo.tfpark import KerasModel
 
 
 class NER(TextKerasModel):
@@ -71,3 +76,33 @@ class NER(TextKerasModel):
         model = TextKerasModel._load_model(labor, path)
         model.__class__ = NER
         return model
+
+
+class BERTNER(KerasModel):
+    def __init__(self, num_entities, bert_config_file, init_checkpoint=None,
+                 use_one_hot_embeddings=False):
+        self.bert_config_file = bert_config_file
+        self.init_checkpoint = init_checkpoint
+        self.use_one_hot_embeddings = use_one_hot_embeddings
+
+        def bert(inputs):
+            bert_config = modeling.BertConfig.from_json_file(self.bert_config_file)
+            model = modeling.BertModel(
+                config=bert_config,
+                is_training=True,
+                input_ids=inputs[0],
+                input_mask=inputs[1],
+                token_type_ids=inputs[2],
+                use_one_hot_embeddings=self.use_one_hot_embeddings)
+            output_layer = model.get_all_encoder_layers()[-4:]
+            return tf.concat(output_layer, axis=-1)
+        input_id = Input(shape=(128, ), name="input_id", dtype='int32')
+        input_mask = Input(shape=(128, ), name="input_mask", dtype='int32')
+        token_type_ids = Input(shape=(128, ), name="token_type_ids", dtype='int32')
+        embeddings = Lambda(bert, output_shape=(128, 4*768), trainable=False)([input_id, input_mask, token_type_ids])
+        # bilstm1 = Bidirectional(LSTM(32, return_sequences=True))(embeddings)
+        # bilstm2 = Bidirectional(LSTM(32, return_sequences=True))(bilstm1)
+        # output = Dense(num_entities, activation="softmax")(bilstm2)
+        model = Model([input_id, input_mask, token_type_ids], embeddings)
+        model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(0.001, clipnorm=5.))
+        super(BERTNER, self).__init__(model)

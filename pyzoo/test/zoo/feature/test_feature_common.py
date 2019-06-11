@@ -91,7 +91,7 @@ class TestFeatureCommon(ZooTestCase):
         predict_result = trained_model.predict_image(image_frame.transform(transformer))
         assert(predict_result.get_predict().count(), 8)
 
-    def create_feature_set_from_rdd(self):
+    def test_create_feature_set_from_rdd(self):
         dim = 2
         data_len = 100
 
@@ -100,7 +100,7 @@ class TestFeatureCommon(ZooTestCase):
             label = np.array((2 * features).sum() + 0.4)
             return Sample.from_ndarray(features, label)
 
-        FeatureSet.rdd(self.sc.parallelize(range(0, data_len)).map(
+        FeatureSet.sample_rdd(self.sc.parallelize(range(0, data_len)).map(
             lambda i: gen_rand_sample())).to_dataset()
 
 

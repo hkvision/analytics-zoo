@@ -230,7 +230,7 @@ class FeatureSet(DataSet):
         return cls(jvalue=jvalue)
 
     @classmethod
-    def rdd(cls, rdd, memory_type="DRAM", bigdl_type="float"):
+    def sample_rdd(cls, rdd, memory_type="DRAM", bigdl_type="float"):
         """
         Create FeatureSet from RDD.
         :param rdd: A RDD

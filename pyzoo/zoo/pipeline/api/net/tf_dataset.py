@@ -469,7 +469,8 @@ class TFFeatureDataset(TFDataset):
         raise Exception("TFFeatureDataset is only supported in training")
 
     def get_training_data(self):
-        return self.dataset.transform(MergeFeatureLabelFeatureTransformer()).to_dataset()
+        # return self.dataset.transform(MergeFeatureLabelFeatureTransformer()).to_dataset()
+        return self.dataset.to_dataset()
 
     def get_validation_data(self):
         if self.validation_dataset is not None:
