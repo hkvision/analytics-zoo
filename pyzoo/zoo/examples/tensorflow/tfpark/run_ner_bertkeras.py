@@ -271,8 +271,11 @@ if __name__ == '__main__':
     # Training
     if options.do_train:
         train_examples = processor.get_train_examples(options.data_dir)
+        features = convert_examples_to_features(train_examples, label_list, options.max_seq_length, tokenizer)
         # steps = len(train_examples) * options.nb_epoch // options.batch_size
         # optimizer = AdamWeightDecay(lr=options.learning_rate, warmup_portion=0.1, total=steps)
+        input = [np.array(features[0].input_ids).reshape(1, 128), np.array(features[0].mask).reshape(1, 128), np.array(features[0].segment_ids).reshape(1, 128)]
+        output = model.predict(input)
         train_rdd = generate_input_rdd(train_examples, label_list, options.max_seq_length, tokenizer, "train")
         train_input_fn = bert_input_fn(train_rdd, options.max_seq_length, options.batch_size)
         train_dataset = TFDataset.from_rdd(train_rdd,

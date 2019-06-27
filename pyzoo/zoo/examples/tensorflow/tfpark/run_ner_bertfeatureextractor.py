@@ -263,10 +263,10 @@ if __name__ == '__main__':
         bert_config_file=os.path.join(options.bert_base_dir, "bert_config.json"),
         init_checkpoint=os.path.join(options.bert_base_dir, "bert_model.ckpt"))
     keras_model = Sequential()
-    keras_model.add(Bidirectional(LSTM(32, return_sequences=True), input_shape=(options.max_seq_length, 768)))
-    keras_model.add(Bidirectional(LSTM(32, return_sequences=True)))
+    keras_model.add(Bidirectional(LSTM(128, return_sequences=True), input_shape=(options.max_seq_length, 768)))
+    keras_model.add(Bidirectional(LSTM(128, return_sequences=True)))
     keras_model.add(Dense(len(label_list), activation="softmax"))
-    keras_model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(0.001, clipnorm=5.))
+    keras_model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(options.learning_rate, clipnorm=1.))
     model = KerasModel(keras_model)
 
     # Training
@@ -292,7 +292,7 @@ if __name__ == '__main__':
         #                                            labels=(tf.int32, [options.max_seq_length, len(label_list)]),
         #                                            batch_size=options.batch_size)
         train_start_time = time.time()
-        model.fit(train_dataset, epochs=options.nb_epoch)
+        model.fit(train_dataset, epochs=options.nb_epoch, batch_size=options.batch_size)
         train_end_time = time.time()
         print("Train time: %s minutes" % ((train_end_time - train_start_time) / 60))
 
@@ -303,17 +303,15 @@ if __name__ == '__main__':
         eval_rdd = generate_input_rdd(eval_examples, label_list, options.max_seq_length, tokenizer, "eval")
         eval_input_fn = bert_input_fn(eval_rdd, options.max_seq_length, options.batch_size)
         eval_rdd_bert = estimator.predict(eval_input_fn)
-        # eval_rdd_bert = sc.parallelize(eval_rdd_bert.collect())
-        # eval_rdd_bert = sc.parallelize(np.random.uniform(low=-50, high=13.3, size=(20, 128, 768)))
+        eval_rdd_bert = sc.parallelize(eval_rdd_bert.collect())
         eval_dataset = TFDataset.from_rdd(eval_rdd_bert,
                                           names=["features"],
                                           shapes=[[options.max_seq_length, 768]],
                                           types=[tf.float32],
                                           batch_per_thread=4)
-        result = model.predict(eval_dataset)
-        print(result.take(5))
-        predictions = np.concatenate([np.argmax(r, axis=-1) for r in result.collect()])
-        truths = np.concatenate([r[1] for r in eval_rdd.collect()])
+        result = model.predict(eval_dataset).collect()
+        predictions = np.concatenate([np.argmax(r, axis=-1) for r in result])
+        truths = np.concatenate([np.argmax(r[1], axis=-1) for r in eval_rdd.collect()])
         mask = np.concatenate([r[0]["input_mask"] for r in eval_rdd.collect()])
         with open(os.path.join(options.output_dir, "label2id.pkl"), 'rb') as rf:
             label2id = pickle.load(rf)

@@ -470,7 +470,8 @@ class TFFeatureDataset(TFDataset):
 
     def get_training_data(self):
         # return self.dataset.transform(MergeFeatureLabelFeatureTransformer()).to_dataset()
-        return self.dataset.to_dataset()
+        # Originally to_dataset is used as BigDL Optimizer requires DataSet
+        return self.dataset
 
     def get_validation_data(self):
         if self.validation_dataset is not None:

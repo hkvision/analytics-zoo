@@ -1386,7 +1386,7 @@ class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
 
     val optimizer = new InternalDistriOptimizer[T](
       _model = model,
-      _dataset = dataSet.asInstanceOf[DistributedDataSet[MiniBatch[T]]],
+      _dataset = dataSet.toDistributed(),
       _criterion = criterion
     ).asInstanceOf[Optimizer[T, MiniBatch[T]]]
     optimizer.setEndWhen(endTrigger)

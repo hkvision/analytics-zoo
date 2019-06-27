@@ -105,4 +105,5 @@ class BERTNER(KerasModel):
         # output = Dense(num_entities, activation="softmax")(bilstm2)
         model = Model([input_id, input_mask, token_type_ids], embeddings)
         model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(0.001, clipnorm=5.))
+        self.model = model
         super(BERTNER, self).__init__(model)

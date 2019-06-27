@@ -182,6 +182,9 @@ object PmemFeatureSet {
         totalRecordNum += 1
         totalBytes += nativeArrayConverter.getBytesPerRecord(record)
       }
+      println("Debugging..................................................")
+      println(s"$totalRecordNum")
+      println(s"$totalBytes")
       Iterator.single((totalRecordNum, totalBytes))
     }
     val arrayRDD = data.zipPartitions(countPerPartition) { (dataIter, countIter) =>
