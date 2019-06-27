@@ -20,6 +20,8 @@ from zoo.tfpark.text.estimator import *
 def _bert_feature_extractor_model_fn(features, labels, mode, params):
     if mode == tf.estimator.ModeKeys.PREDICT:
         output_layer = bert_model(features, labels, mode, params).get_all_encoder_layers()[-4:]
+        # Remark: In the paper, concatenating the last four layers will get the best score.
+        # Use add here first due to memory issue.
         features = tf.add_n(output_layer)
         return TFEstimatorSpec(mode=mode, predictions=features)
     else:
