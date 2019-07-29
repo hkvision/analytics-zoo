@@ -22,6 +22,7 @@ import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.feature.text.TextSet
 import com.intel.analytics.zoo.models.textclassification.TextClassifier
 import com.intel.analytics.zoo.pipeline.api.keras.metrics.Accuracy
+import com.intel.analytics.zoo.pipeline.api.keras.optimizers.{Adam => ZooAdam}
 import com.intel.analytics.zoo.pipeline.api.keras.objectives.SparseCategoricalCrossEntropy
 import org.apache.log4j.{Level => Level4j, Logger => Logger4j}
 import scopt.OptionParser
@@ -35,7 +36,7 @@ case class TextClassificationParams(
    trainingSplit: Double = 0.8, batchSize: Int = 128,
    nbEpoch: Int = 20, learningRate: Double = 0.01,
    partitionNum: Int = 4, model: Option[String] = None,
-   outputPath: Option[String] = None)
+   outputPath: Option[String] = None, zooAdam: Int = 1)
 
 
 object TextClassification {
@@ -90,6 +91,8 @@ object TextClassification {
       opt[String]('o', "outputPath")
         .text("The directory to save the model and word dictionary")
         .action((x, c) => c.copy(outputPath = Some(x)))
+      opt[Int]('z', "zooAdam")
+        .action((x, c) => c.copy(zooAdam = x))
     }
 
     parser.parse(args, TextClassificationParams()).map { param =>
@@ -117,9 +120,10 @@ object TextClassification {
           param.encoder, param.encoderOutputDim)
       }
 
+      val optimMethod = if (param.zooAdam == 1) new ZooAdam(lr = param.learningRate)
+      else new BigDLAdam(learningRate = param.learningRate)
       model.compile(
-        optimizer = new Adagrad(learningRate = param.learningRate,
-          learningRateDecay = 0.001),
+        optimizer = optimMethod,
         loss = SparseCategoricalCrossEntropy[Float](),
         metrics = List(new Accuracy()))
       model.fit(trainTextSet, batchSize = param.batchSize,

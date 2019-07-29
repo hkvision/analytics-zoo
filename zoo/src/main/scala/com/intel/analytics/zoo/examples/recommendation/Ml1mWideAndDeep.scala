@@ -18,10 +18,11 @@ package com.intel.analytics.zoo.examples.recommendation
 
 import com.intel.analytics.bigdl.nn.ClassNLLCriterion
 import com.intel.analytics.bigdl.numeric.NumericFloat
-import com.intel.analytics.bigdl.optim.{Adam, Top1Accuracy}
+import com.intel.analytics.bigdl.optim.{BigDLAdam, Top1Accuracy}
 import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.models.recommendation._
 import com.intel.analytics.zoo.pipeline.api.keras.objectives.SparseCategoricalCrossEntropy
+import com.intel.analytics.zoo.pipeline.api.keras.optimizers.Adam
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions._
@@ -72,8 +73,8 @@ object Ml1mWideAndDeep {
     val validationRdds = validationpairFeatureRdds.map(x => x.sample)
 
     val optimMethod = new Adam[Float](
-      learningRate = 1e-2,
-      learningRateDecay = 1e-5)
+      lr = 1e-2,
+      decay = 1e-5)
 
     wideAndDeep.compile(optimizer = optimMethod,
       loss = SparseCategoricalCrossEntropy[Float](zeroBasedLabel = false),

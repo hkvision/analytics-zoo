@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Analytics Zoo Authors.
+ * Copyright 2016 The BigDL Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,62 +13,57 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.intel.analytics.zoo.pipeline.api.keras.optimizers
 
-import com.intel.analytics.bigdl.optim.SGD
-import com.intel.analytics.bigdl.optim.SGD.{Default, LearningRateSchedule}
+package com.intel.analytics.bigdl.optim
+
+import breeze.linalg.*
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
-import com.intel.analytics.bigdl.utils.Table
-import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.SGDRef
+import com.intel.analytics.bigdl.utils.{T, Table}
 
 import scala.math._
 import scala.reflect.ClassTag
 
-
 /**
- * An implementation of Adam http://arxiv.org/pdf/1412.6980.pdf with learning rate schedule.
- * @param lr learning rate
- * @param decay learning rate decay
- * @param schedule learning rate schedule
- * @param beta_1 first moment coefficient
- * @param beta_2 second moment coefficient
- * @param epsilon for numerical stability
- */
-class Adam[@specialized(Float, Double) T: ClassTag](
-    var lr: Double = 1e-3,
-    var beta_1: Double = 0.9,
-    var beta_2: Double = 0.999,
-    var epsilon: Double = 1e-8,
-    var decay: Double = 0.0,
-    val schedule: LearningRateSchedule = Default()
-  )(implicit ev: TensorNumeric[T]) extends SGD[T](learningRate = lr,
-    learningRateDecay = decay, learningRateSchedule = schedule) {
+  * An implementation of Adam http://arxiv.org/pdf/1412.6980.pdf
+  * @param learningRate learning rate
+  * @param learningRateDecay learning rate decay
+  * @param beta1 first moment coefficient
+  * @param beta2 second moment coefficient
+  * @param Epsilon for numerical stability
+  * @tparam T
+  */
+class BigDLAdam[@specialized(Float, Double) T: ClassTag](
+   var learningRate: Double = 1e-3,
+   var learningRateDecay: Double = 0.0,
+   var beta1: Double = 0.9,
+   var beta2: Double = 0.999,
+   var Epsilon: Double = 1e-8)(implicit ev: TensorNumeric[T]) extends OptimMethod[T] {
 
   @transient
   private var buffer: Tensor[T] = null
 
   /**
-   * An implementation of Adam http://arxiv.org/pdf/1412.6980.pdf
-   *
-   * @param feval     a function that takes a single input (X), the point of a evaluation, and
-   *                  returns f(X) and df/dX
-   * @param parameter the initial point
-   * @return the new x vector and the function list {fx}, evaluated before the update
-   */
+    * An implementation of Adam http://arxiv.org/pdf/1412.6980.pdf
+    *
+    * @param feval     a function that takes a single input (X), the point of a evaluation, and
+    *                  returns f(X) and df/dX
+    * @param parameter the initial point
+    * @return the new x vector and the function list {fx}, evaluated before the update
+    */
   override def optimize(feval: (Tensor[T]) => (T, Tensor[T]),
-               parameter: Tensor[T]): (Tensor[T], Array[T]) = {
-    this.updateHyperParameter()
+                        parameter: Tensor[T]): (Tensor[T], Array[T]) = {
     if (buffer == null) buffer = Tensor[T]()
-    val lr = this.lr
-    val lrd = this.decay
-    val beta1 = this.beta_1
-    val beta2 = this.beta_2
-    val eps = this.epsilon
+    val lr = this.learningRate
+    val lrd = this.learningRateDecay
+    val beta1 = this.beta1
+    val beta2 = this.beta2
+    val eps = this.Epsilon
 
     val (fx, dfdx) = feval(parameter)
-    val state = SGDRef.getstate(this)
-    val timestep = state.getOrElse[Int]("evalCounter", 0)
+
+    var timestep = state.getOrElse[Int]("evalCounter", 0)
+
     val (_s, _r, _denom) =
       if (state.get[Tensor[T]]("s").isDefined) {
         (state.get[Tensor[T]]("s").get, state.get[Tensor[T]]("r").get,
@@ -78,13 +73,14 @@ class Adam[@specialized(Float, Double) T: ClassTag](
           Tensor[T]().resizeAs(dfdx).zero())
       }
 
-//    val clr = - this.schedule.currentRate
-    val clr = lr / (1 + (timestep-1)*lrd)
+    val clr = lr / (1 + timestep*lrd)
+
+    timestep = timestep + 1
 
     /**
-     * m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
-     * v_t = beta_2 * v_t-1 + (1 - beta_2) * g_t * g_t
-     */
+      * m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
+      * v_t = beta_2 * v_t-1 + (1 - beta_2) * g_t * g_t
+      */
     _s.mul(ev.fromType[Double](beta1)).add(ev.fromType[Double](1-beta1), dfdx)
     // buffer = dfdx * dfdx
     buffer.resizeAs(dfdx).cmul(dfdx, dfdx)
@@ -103,24 +99,25 @@ class Adam[@specialized(Float, Double) T: ClassTag](
     println(timestep)
     println(stepSize)
 
+    state("evalCounter") = timestep // A tmp tensor to hold the sqrt(v) + epsilon
     state("s") = _s // 1st moment variables
     state("r") = _r // 2nd moment variables
     state("denom") = _denom // 3nd moment variables
-//    print(parameter)
+
     (parameter, Array(fx))
   }
 
   override def loadFromTable(config: Table): this.type = {
-    super.loadFromTable(config)
-    this.beta_1 = config.get[Double]("beta1").getOrElse(this.beta_1)
-    this.beta_2 = config.get[Double]("beta2").getOrElse(this.beta_2)
-    this.epsilon = config.get[Double]("Epsilon").getOrElse(this.epsilon)
+    this.learningRate = config.get[Double]("learningRate").getOrElse(this.learningRate)
+    this.learningRateDecay = config.get[Double]("learningRateDecay")
+      .getOrElse(this.learningRateDecay)
+    this.beta1 = config.get[Double]("beta1").getOrElse(this.beta1)
+    this.beta2 = config.get[Double]("beta2").getOrElse(this.beta2)
+    this.Epsilon = config.get[Double]("Epsilon").getOrElse(this.Epsilon)
     this
   }
 
   override def clearHistory(): Unit = {
-//    super.clearHistory()
-    val state = SGDRef.getstate(this)
     state.delete("s")
     state.delete("r")
   }
