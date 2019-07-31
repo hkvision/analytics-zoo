@@ -67,7 +67,7 @@ class TextClassifier[T: ClassTag] private(
       throw new IllegalArgumentException(s"Unsupported encoder for TextClassifier: $encoder")
     }
     model.add(Dense(128))
-    model.add(Dropout(0.2))
+//    model.add(Dropout(0.2))
     model.add(Activation("relu"))
     model.add(Dense(classNum, activation = "softmax"))
     model

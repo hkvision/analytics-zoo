@@ -106,8 +106,6 @@ object TextClassification {
       val transformed = textSet.tokenize().normalize()
         .word2idx(removeTopN = 10, maxWordsNum = param.maxWordsNum)
         .shapeSequence(param.sequenceLength).generateSample()
-      val Array(trainTextSet, valTextSet) = transformed.randomSplit(
-        Array(param.trainingSplit, 1 - param.trainingSplit))
 
       val model = if (param.model.isDefined) {
         TextClassifier.loadModel(param.model.get)
@@ -128,10 +126,10 @@ object TextClassification {
         optimizer = optimMethod,
         loss = SparseCategoricalCrossEntropy[Float](),
         metrics = List(new Accuracy()))
-      model.fit(trainTextSet, batchSize = param.batchSize,
-        nbEpoch = param.nbEpoch, validationData = valTextSet)
+      model.fit(transformed, batchSize = param.batchSize,
+        nbEpoch = param.nbEpoch)
 
-      val predictSet = model.predict(valTextSet, batchPerThread = param.partitionNum)
+      val predictSet = model.predict(transformed, batchPerThread = param.partitionNum)
       println("Probability distributions of the first five texts in the validation set:")
       predictSet.toDistributed().rdd.take(5).map(_.getPredict.toTensor).foreach(println)
       if (param.outputPath.isDefined) {
