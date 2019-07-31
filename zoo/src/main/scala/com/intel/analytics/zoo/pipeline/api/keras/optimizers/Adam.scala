@@ -68,7 +68,7 @@ class Adam[@specialized(Float, Double) T: ClassTag](
 
     val (fx, dfdx) = feval(parameter)
     val state = SGDRef.getstate(this)
-    val timestep = state.getOrElse[Int]("evalCounter", 0)
+    var timestep = state.getOrElse[Int]("neval", 0)
     val (_s, _r, _denom) =
       if (state.get[Tensor[T]]("s").isDefined) {
         (state.get[Tensor[T]]("s").get, state.get[Tensor[T]]("r").get,
@@ -78,8 +78,7 @@ class Adam[@specialized(Float, Double) T: ClassTag](
           Tensor[T]().resizeAs(dfdx).zero())
       }
 
-//    val clr = - this.schedule.currentRate
-    val clr = lr / (1 + (timestep-1)*lrd)
+    val clr = - this.schedule.currentRate
 
     /**
      * m_t = beta_1 * m_t-1 + (1 - beta_1) * g_t
@@ -100,13 +99,11 @@ class Adam[@specialized(Float, Double) T: ClassTag](
     val biasCorrection2 = 1 - pow(beta2, timestep)
     val stepSize = clr * sqrt(biasCorrection2) / biasCorrection1
     parameter.addcdiv(ev.fromType[Double](-stepSize), _s, _denom)
-    println(timestep)
-    println(stepSize)
 
     state("s") = _s // 1st moment variables
     state("r") = _r // 2nd moment variables
     state("denom") = _denom // 3nd moment variables
-//    print(parameter)
+
     (parameter, Array(fx))
   }
 
@@ -119,11 +116,9 @@ class Adam[@specialized(Float, Double) T: ClassTag](
   }
 
   override def clearHistory(): Unit = {
-//    super.clearHistory()
+    super.clearHistory()
     val state = SGDRef.getstate(this)
     state.delete("s")
     state.delete("r")
   }
-
-  override def getLearningRate(): Double = this.learningRate
 }

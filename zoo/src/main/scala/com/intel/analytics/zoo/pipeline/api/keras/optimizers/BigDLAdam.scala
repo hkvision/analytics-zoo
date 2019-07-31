@@ -96,8 +96,6 @@ class BigDLAdam[@specialized(Float, Double) T: ClassTag](
     val biasCorrection2 = 1 - pow(beta2, timestep)
     val stepSize = clr * sqrt(biasCorrection2) / biasCorrection1
     parameter.addcdiv(ev.fromType[Double](-stepSize), _s, _denom)
-    println(timestep)
-    println(stepSize)
 
     state("evalCounter") = timestep // A tmp tensor to hold the sqrt(v) + epsilon
     state("s") = _s // 1st moment variables
