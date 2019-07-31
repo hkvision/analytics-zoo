@@ -16,15 +16,20 @@
 
 package com.intel.analytics.zoo.models.textclassification
 
+import java.util.concurrent.atomic.AtomicInteger
+
 import com.intel.analytics.bigdl.Criterion
+import com.intel.analytics.bigdl.dataset.{DistributedDataSet, Sample, SampleToMiniBatch, Utils}
 import com.intel.analytics.bigdl.nn.abstractnn.{AbstractModule, Activity}
 import com.intel.analytics.bigdl.optim.{OptimMethod, ValidationMethod, ValidationResult}
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric
-import com.intel.analytics.bigdl.utils.Shape
+import com.intel.analytics.bigdl.utils.{RandomGenerator, Shape}
 import com.intel.analytics.zoo.feature.text.TextSet
 import com.intel.analytics.zoo.models.common.ZooModel
 import com.intel.analytics.zoo.pipeline.api.keras.layers._
+import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.EngineRef
 import com.intel.analytics.zoo.pipeline.api.keras.models.{KerasNet, Sequential}
+import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
@@ -81,7 +86,16 @@ class TextClassifier[T: ClassTag] private(
       batchSize: Int,
       nbEpoch: Int,
       validationData: TextSet = null)(implicit ev: TensorNumeric[T]): Unit = {
-    model.asInstanceOf[KerasNet[T]].fit(x, batchSize, nbEpoch, validationData)
+    val sampleRDD = x.toDistributed().rdd.map(_.getSample).asInstanceOf[RDD[Sample[T]]]
+    val nodeNumber = EngineRef.getNodeNumber()
+    val dataset = new CachedDistriDataSet[Sample[T]](
+      sampleRDD.coalesce(nodeNumber, true)
+        .mapPartitions(iter => {
+          Iterator.single(iter.toArray)
+        }).setName("cached dataset")
+        .cache()
+    ) -> SampleToMiniBatch[T](batchSize)
+    model.asInstanceOf[KerasNet[T]].fit(dataset, nbEpoch)
   }
 
   def evaluate(
@@ -103,6 +117,114 @@ class TextClassifier[T: ClassTag] private(
 
   def setCheckpoint(path: String, overWrite: Boolean = true): Unit = {
     model.asInstanceOf[KerasNet[T]].setCheckpoint(path, overWrite)
+  }
+}
+
+
+class CachedDistriDataSet[T: ClassTag]
+(buffer: RDD[Array[T]], isInOrder: Boolean = false, groupSize: Int = 1)
+  extends DistributedDataSet[T] {
+
+  protected lazy val count: Long = buffer.mapPartitions(iter => {
+    require(iter.hasNext)
+    val array = iter.next()
+    require(!iter.hasNext)
+    Iterator.single(array.length)
+  }).reduce(_ + _)
+
+  protected var indexes: RDD[Array[Int]] = buffer.mapPartitions(iter => {
+    Iterator.single((0 until iter.next().length).toArray)
+  }).setName("original index").cache()
+
+  override def data(train: Boolean): RDD[T] = {
+    val _train = train
+    val _groupSize = if (isInOrder) Utils.getBatchSize(groupSize) else 1
+    buffer.zipPartitions(indexes)((dataIter, indexIter) => {
+      val indexes = indexIter.next()
+      val indexOffset = math.max(1, indexes.length - (_groupSize - 1))
+      val localData = dataIter.next()
+      val offset = if (_train) {
+        RandomGenerator2.RNG.uniform(0, indexOffset).toInt
+      } else {
+        0
+      }
+      new Iterator[T] {
+        private val _offset = new AtomicInteger(offset)
+
+        override def hasNext: Boolean = {
+          if (_train) true else _offset.get() < localData.length
+        }
+
+        override def next(): T = {
+          val i = _offset.getAndIncrement()
+          if (_train) {
+            localData(indexes(i % localData.length))
+          } else {
+            if (i < localData.length) {
+              localData(indexes(i))
+            } else {
+              null.asInstanceOf[T]
+            }
+          }
+        }
+      }
+    })
+  }
+
+  override def size(): Long = count
+
+  override def shuffle(): Unit = {
+    if (!isInOrder) {
+      indexes.unpersist()
+      indexes = buffer.mapPartitions(iter => {
+        Iterator.single(RandomGenerator2.shuffle((0 until iter.next().length).toArray))
+      }).setName("shuffled index").cache()
+    }
+  }
+
+  override def originRDD(): RDD[_] = buffer
+
+  override def cache(): Unit = {
+    buffer.count()
+    indexes.count()
+    isCached = true
+  }
+
+  override def unpersist(): Unit = {
+    buffer.unpersist()
+    indexes.unpersist()
+    isCached = false
+  }
+}
+
+
+object RandomGenerator2 {
+
+  var randomSeed = 1
+  val generators = new ThreadLocal[RandomGenerator]()
+
+  // scalastyle:off methodName
+  def RNG: RandomGenerator = {
+    if (generators.get() == null) {
+      val rg = RandomGenerator.RNG.clone()
+      rg.setSeed(randomSeed)
+      generators.set(rg)
+    }
+    generators.get()
+  }
+  // scalastyle:on methodName
+
+  def shuffle[T](data: Array[T]): Array[T] = {
+    var i = 0
+    val length = data.length
+    while (i < length) {
+      val exchange = RNG.uniform(0, length - i).toInt + i
+      val tmp = data(exchange)
+      data(exchange) = data(i)
+      data(i) = tmp
+      i += 1
+    }
+    data
   }
 }
 

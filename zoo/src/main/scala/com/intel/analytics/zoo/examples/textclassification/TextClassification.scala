@@ -18,6 +18,7 @@ package com.intel.analytics.zoo.examples.textclassification
 
 import com.intel.analytics.bigdl.optim._
 import com.intel.analytics.bigdl.tensor.TensorNumericMath.TensorNumeric.NumericFloat
+import com.intel.analytics.bigdl.utils.RandomGenerator
 import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.feature.text.TextSet
 import com.intel.analytics.zoo.models.textclassification.TextClassifier
@@ -96,6 +97,7 @@ object TextClassification {
     }
 
     parser.parse(args, TextClassificationParams()).map { param =>
+      RandomGenerator.RNG.setSeed(10)
       val sc = NNContext.initNNContext("Text Classification Example")
 
       val textSet = TextSet.read(param.dataPath)
