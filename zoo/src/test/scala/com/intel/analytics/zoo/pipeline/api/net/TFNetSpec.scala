@@ -16,19 +16,24 @@
 package com.intel.analytics.zoo.pipeline.api.net
 
 
-import com.intel.analytics.bigdl.nn.abstractnn.AbstractModule
+import com.intel.analytics.bigdl.dataset._
+import com.intel.analytics.bigdl.optim.{DistriOptimizer, SGD}
 import com.intel.analytics.bigdl.tensor.Tensor
-import com.intel.analytics.bigdl.utils.{LayerException, T}
-import com.intel.analytics.zoo.pipeline.api.Net
-import com.intel.analytics.zoo.pipeline.api.keras.ZooSpecHelper
-import com.intel.analytics.zoo.pipeline.api.keras.serializer.ModuleSerializationTest
+import com.intel.analytics.bigdl.utils.{Engine, LayerException, LoggerFilter, T}
+import com.intel.analytics.zoo.common.MaxEpoch
+import com.intel.analytics.zoo.pipeline.api.keras.optimizers.Adam
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.serializer.KryoSerializer
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
-import scala.util.Random
 
 class TFNetSpec extends FlatSpec with Matchers with BeforeAndAfter {
+  LoggerFilter.redirectSparkInfoLogs()
+  Logger.getLogger("org").setLevel(Level.WARN)
+  Logger.getLogger("akka").setLevel(Level.WARN)
+  Logger.getLogger("com.intel.analytics.bigdl.optim").setLevel(Level.INFO)
+  Logger.getLogger("com.intel.analytics.bigdl").setLevel(Level.INFO)
 
   "TFNet " should "work with different data types" in {
 
@@ -135,6 +140,35 @@ class TFNetSpec extends FlatSpec with Matchers with BeforeAndAfter {
     val gradInput = net.backward(input, output).toTensor[Float].clone()
 
     gradInput.size() should be (input.size())
+  }
+
+  "TFTraningHelper " should "work properly" in {
+    val conf = Engine.createSparkConf()
+      .setAppName("Optimizer test")
+      .setMaster("local[4]")
+    val sc = new SparkContext(conf)
+    Engine.init
+    val layer = TFTrainingHelper("/home/kai/mnist_keras")
+    val data = new Array[Sample[Float]](500)
+    var i = 0
+    while (i < data.length) {
+      val input = Tensor[Float](28, 28, 1).rand()
+      val label = Tensor[Float](1).fill(0.0f)
+      data(i) = Sample(Array(input, label), label)
+      i += 1
+    }
+
+    val rdd = sc.parallelize(data)
+    val dataSet = DataSet.rdd(rdd) -> SampleToMiniBatch[Float](128)
+    val optimizer = new DistriOptimizer[Float](
+      layer,
+      dataSet.asInstanceOf[DistributedDataSet[MiniBatch[Float]]],
+      new IdentityCriterion())
+      .setOptimMethods(
+        Map("dense/" -> new SGD[Float](0.001), "dense_" -> new Adam[Float](0.02)))
+      .setEndWhen(MaxEpoch(2))
+    optimizer.optimize()
+    println("1111")
   }
 
 }
