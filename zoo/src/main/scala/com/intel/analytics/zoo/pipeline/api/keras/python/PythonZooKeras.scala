@@ -1414,4 +1414,23 @@ class PythonZooKeras[T: ClassTag](implicit ev: TensorNumeric[T]) extends PythonZ
   def createEpochStep(stepSize: Int, gamma: Double): SGD.EpochStep = {
     SGD.EpochStep(stepSize, gamma)
   }
+
+
+  def tfEvaluate(model: AbstractModule[Activity, Activity, T],
+                    valRDD: JavaRDD[Sample],
+                    batchSize: Int,
+                    valMethods: JList[ValidationMethod[T]])
+  : JList[EvaluatedResult] = {
+    val sampleRDD = toJSample(valRDD)
+    val featureSize = sampleRDD.first().numFeature()
+    val dataSet = batchingWithPaddingStrategy(DataSet.rdd(sampleRDD), batchSize, featureSize)
+    val rdd = dataSet.toDistributed().data(train = false)
+    val resultArray = model.evaluate(rdd,
+      valMethods.asScala.toArray)
+    val testResultArray = resultArray.map { result =>
+      EvaluatedResult(result._1.result()._1, result._1.result()._2,
+        result._2.toString())
+    }
+    testResultArray.toList.asJava
+  }
 }

@@ -23,7 +23,7 @@ from py4j.protocol import Py4JJavaError
 
 from bigdl.nn.criterion import Criterion
 from bigdl.nn.layer import Layer
-from bigdl.util.common import to_list, JavaValue
+from bigdl.util.common import to_list, JavaValue, callBigDlFunc
 from bigdl.optim.optimizer import EveryEpoch, MaxEpoch, SeveralIteration
 from zoo.pipeline.api.keras.engine.topology import to_bigdl_metric
 from zoo.pipeline.api.keras.optimizers import DistriOptimizer
@@ -53,6 +53,12 @@ class TFTrainingHelper(Layer):
         else:
             byte_arr = None
         super(TFTrainingHelper, self).__init__(None, "float", path, byte_arr)
+
+    def evaluate(self, dataset, batch_size, val_methods):
+        return callBigDlFunc(self.bigdl_type,
+                             "tfEvaluate",
+                             self.value,
+                             dataset, batch_size, val_methods)
 
 
 class TFOptimizer:
@@ -182,10 +188,12 @@ with variable_creator_scope():
 
         if val_outputs is not None and val_labels is not None:
             val_rdd = self.dataset.get_validation_data()
+            self.val_rdd = val_rdd
             if val_rdd is not None:
                 val_method = [TFValidationMethod(m, len(val_outputs), len(val_labels))
                               for m in to_list(val_method)]
                 training_rdd = sample_rdd
+                self.val_method = val_method
 
             elif val_split != 0.0:
                 training_rdd, val_rdd = sample_rdd.randomSplit([1 - val_split, val_split])
