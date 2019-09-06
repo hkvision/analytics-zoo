@@ -28,6 +28,30 @@ from zoo.pipeline.api.net.torch_criterion import TorchCriterion
 
 class TestTF(ZooTestCase):
 
+    def test_embedding(self):
+        model = nn.Embedding(20, 5)
+        net = TorchNet.from_pytorch(model, torch.LongTensor(1, 5).random_(0, 20))
+        input = np.random.randint(0, 20, [4, 5])
+        output = net.forward(input)
+
+    def test_mean(self):
+        class BertLayerNorm(nn.Module):
+            def __init__(self):
+                """Construct a layernorm module in the TF style (epsilon inside the square root).
+                """
+                super(BertLayerNorm, self).__init__()
+
+            def forward(self, x):
+                u = x.mean(-1, keepdim=True)
+                return u
+        model = BertLayerNorm()
+        torch_input = torch.rand(2, 3)
+        torch_output = model.forward(torch_input)
+        net = TorchNet.from_pytorch(model, [2, 3])
+        input = np.random.rand(2, 3)
+        output = net.forward(input)
+        print(output)
+
     def test_torchnet_constructor(self):
         # two inputs test
         class TwoInputModel(nn.Module):

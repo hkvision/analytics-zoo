@@ -195,7 +195,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_Pyt
 
     // keep track of the primitive array to release later.
     std::vector<jfloatArray> j_data_vector;
-    std::vector<jfloat*> c_data_vector;
+    std::vector<jlong*> c_data_vector;
     std::vector<jintArray> j_shape_vector;
     std::vector<jint*> c_shape_vector;
 
@@ -206,8 +206,11 @@ JNIEXPORT jobjectArray JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_Pyt
 
     for (int i = 0; i < input_size; i++) {
         jfloatArray tensor_storage = (jfloatArray)jenv->GetObjectArrayElement(input_jstorage, i);
-        jfloat* input_c_storage = (jfloat*) jenv -> GetPrimitiveArrayCritical(tensor_storage, JNI_FALSE);
+        jlong* input_c_storage = (jlong*) jenv -> GetPrimitiveArrayCritical(tensor_storage, JNI_FALSE);
         jintArray tensor_shape = (jintArray)jenv -> GetObjectArrayElement(input_jshape, i);
+        for (i=0; i<4; i++) {
+            std::cout << input_c_storage[i] << "\n";
+        }
         jint* input_c_shape = (jint*) jenv -> GetPrimitiveArrayCritical(tensor_shape, JNI_FALSE);
         int c_dim_count = jenv -> GetArrayLength(tensor_shape);
 
@@ -216,10 +219,11 @@ JNIEXPORT jobjectArray JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_Pyt
             input_torch_shape.push_back(*(input_c_shape + i));
         }
 
-        auto input_tensor = torch::from_blob(input_c_storage + c_input_offsets[i], input_torch_shape, at::kFloat);
-        if (isTraining) {
-            input_tensor.set_requires_grad(true);
-        }
+        auto input_tensor = torch::from_blob(input_c_storage + c_input_offsets[i], input_torch_shape, at::kLong);
+        //if (isTraining) {
+        //    input_tensor.set_requires_grad(true);
+        //}
+        std::cout << input_tensor << "\n";
 
         input_vector.push_back(input_tensor);
 

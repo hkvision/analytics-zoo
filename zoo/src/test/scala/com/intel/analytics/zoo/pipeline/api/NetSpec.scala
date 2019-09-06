@@ -26,10 +26,26 @@ import com.intel.analytics.zoo.pipeline.api.keras.ZooSpecHelper
 import com.intel.analytics.zoo.pipeline.api.keras.layers.utils.KerasUtils
 import com.intel.analytics.zoo.pipeline.api.keras.layers.{Dense, Input, KerasLayerWrapper}
 import com.intel.analytics.zoo.pipeline.api.keras.models.{KerasNet, Model => ZModel}
+import com.intel.analytics.zoo.pipeline.api.net.TorchNet
 
 import scala.util.Random
 
 class NetSpec extends ZooSpecHelper{
+
+  "TorchNet embedding" should "work properly" in {
+    val net = TorchNet("/home/kai/Documents/pytorch_embed/model.pt")
+    val input = Tensor[Float](2, 4)
+    input(Array(1, 1)) = 1
+    input(Array(1, 2)) = 2
+    input(Array(1, 3)) = 4
+    input(Array(1, 4)) = 5
+    input(Array(2, 1)) = 4
+    input(Array(2, 2)) = 3
+    input(Array(2, 3)) = 2
+    input(Array(2, 4)) = 6
+    val output = net.forward(input)
+    println(output)
+  }
 
   "invokeMethod set inputShape" should "work properly" in {
     KerasUtils.invokeMethod(Dense[Float](3), "_inputShapeValue_$eq", Shape(2, 3))

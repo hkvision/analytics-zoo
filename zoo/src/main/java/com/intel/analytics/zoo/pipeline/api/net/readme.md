@@ -6,14 +6,14 @@ Download LibTorch zip file, unzip it and check the build-version file (1.1.0)
 
 # Build dynamic lib
 ```bash
-cd path-to-analytics-zoo/zoo/target/classes
-javah -d path-to-analytics-zoo/zoo/src/main/java/com/intel/analytics/zoo/pipeline/api/net/native  com.intel.analytics.zoo.pipeline.api.net.PytorchModel
+cd ~/analytics-zoo/zoo/target/classes
+javah -d ~/analytics-zoo/zoo/src/main/java/com/intel/analytics/zoo/pipeline/api/net/native  com.intel.analytics.zoo.pipeline.api.net.PytorchModel
 ```
 
 Update the path in CMakeLists.txt to add your JDK path
 ```bash
-cd path-to-analytics-zoo/analytics-zoo/zoo/src/main/java/com/intel/analytics/zoo/pipeline/api/net/native/build
-cmake -DCMAKE_PREFIX_PATH=unzipped-libtorch-folder ..
+cd ~/analytics-zoo/zoo/src/main/java/com/intel/analytics/zoo/pipeline/api/net/native/build
+cmake -DCMAKE_PREFIX_PATH=/home/kai/Downloads/libtorch-shared-with-deps-1.1.0/libtorch ..
 make
 ```
 
