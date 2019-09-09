@@ -28,6 +28,18 @@ from zoo.pipeline.api.net.torch_criterion import TorchCriterion
 
 class TestTF(ZooTestCase):
 
+    def test_bert_embedding(self):
+        from pytorch_transformers import BertConfig
+        from pytorch_transformers.modeling_bert import BertEmbeddings, BertForSequenceClassification
+        model = BertForSequenceClassification(BertConfig())
+        torch_input = torch.LongTensor(4, 128).random_(0, 200)
+        # torch.LongTensor(4, 128).random_(0, 2), torch.LongTensor(4, 128).random_(0, 2)
+        torch_output = model.forward(torch_input)
+        net = TorchNet.from_pytorch(model, torch.LongTensor(1, 128).random_(0, 200))
+        input = torch_input.numpy()
+        output = net.forward(input)
+        print(torch_output)
+
     def test_embedding(self):
         model = nn.Embedding(20, 5)
         net = TorchNet.from_pytorch(model, torch.LongTensor(1, 5).random_(0, 20))
@@ -40,15 +52,17 @@ class TestTF(ZooTestCase):
                 """Construct a layernorm module in the TF style (epsilon inside the square root).
                 """
                 super(BertLayerNorm, self).__init__()
+                self.embedding = nn.Embedding(20, 5)
 
             def forward(self, x):
-                u = x.mean(-1, keepdim=True)
+                e = self.embedding(x)
+                u = e.mean(-1, keepdim=True)
                 return u
         model = BertLayerNorm()
-        torch_input = torch.rand(2, 3)
-        torch_output = model.forward(torch_input)
-        net = TorchNet.from_pytorch(model, [2, 3])
-        input = np.random.rand(2, 3)
+        # torch_input = torch.rand(2, 3)
+        # torch_output = model.forward(torch_input)
+        net = TorchNet.from_pytorch(model, torch.LongTensor(1, 5).random_(0, 20))
+        input = np.random.randint(0, 20, [4, 5])
         output = net.forward(input)
         print(output)
 

@@ -26,7 +26,7 @@ JNIEXPORT jlong JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_PytorchMod
 /*
  * Class:     com_intel_analytics_zoo_pipeline_api_net_PytorchModel
  * Method:    modelForwardNative
- * Signature: (JZ[[I[I[[I)[Lcom/intel/analytics/zoo/pipeline/inference/JTensor;
+ * Signature: (JZ[[J[I[[I)[Lcom/intel/analytics/zoo/pipeline/inference/JTensor;
  */
 JNIEXPORT jobjectArray JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_PytorchModel_modelForwardNative
   (JNIEnv *, jclass, jlong, jboolean, jobjectArray, jintArray, jobjectArray);

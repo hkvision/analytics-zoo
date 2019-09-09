@@ -208,9 +208,6 @@ JNIEXPORT jobjectArray JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_Pyt
         jfloatArray tensor_storage = (jfloatArray)jenv->GetObjectArrayElement(input_jstorage, i);
         jlong* input_c_storage = (jlong*) jenv -> GetPrimitiveArrayCritical(tensor_storage, JNI_FALSE);
         jintArray tensor_shape = (jintArray)jenv -> GetObjectArrayElement(input_jshape, i);
-        for (i=0; i<4; i++) {
-            std::cout << input_c_storage[i] << "\n";
-        }
         jint* input_c_shape = (jint*) jenv -> GetPrimitiveArrayCritical(tensor_shape, JNI_FALSE);
         int c_dim_count = jenv -> GetArrayLength(tensor_shape);
 
@@ -223,7 +220,6 @@ JNIEXPORT jobjectArray JNICALL Java_com_intel_analytics_zoo_pipeline_api_net_Pyt
         //if (isTraining) {
         //    input_tensor.set_requires_grad(true);
         //}
-        std::cout << input_tensor << "\n";
 
         input_vector.push_back(input_tensor);
 
