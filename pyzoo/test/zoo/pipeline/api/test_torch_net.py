@@ -31,20 +31,25 @@ class TestTF(ZooTestCase):
     def test_bert_embedding(self):
         from pytorch_transformers import BertConfig
         from pytorch_transformers.modeling_bert import BertEmbeddings, BertForSequenceClassification
-        model = BertForSequenceClassification(BertConfig())
+        model = BertForSequenceClassification(BertConfig()).eval()
         torch_input = torch.LongTensor(4, 128).random_(0, 200)
         # torch.LongTensor(4, 128).random_(0, 2), torch.LongTensor(4, 128).random_(0, 2)
-        torch_output = model.forward(torch_input)
-        net = TorchNet.from_pytorch(model, torch.LongTensor(1, 128).random_(0, 200))
-        input = torch_input.numpy()
-        output = net.forward(input)
+        torch_output = model.forward(torch_input)[0].detach().numpy()
         print(torch_output)
+        net = TorchNet.from_pytorch(model, torch_input)
+        zoo_output = net.forward(torch_input.numpy())
+        print(zoo_output)
+        assert np.allclose(zoo_output, torch_output)
 
     def test_embedding(self):
         model = nn.Embedding(20, 5)
-        net = TorchNet.from_pytorch(model, torch.LongTensor(1, 5).random_(0, 20))
-        input = np.random.randint(0, 20, [4, 5])
-        output = net.forward(input)
+        torch_input = torch.LongTensor(4, 10).random_(0, 20)
+        torch_output = model.forward(torch_input).detach().numpy()
+        print(torch_output)
+        net = TorchNet.from_pytorch(model, torch_input)
+        zoo_output = net.forward(torch_input.numpy())
+        print(zoo_output)
+        assert np.allclose(zoo_output, torch_output)
 
     def test_mean(self):
         class BertLayerNorm(nn.Module):
