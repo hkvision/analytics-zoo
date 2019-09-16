@@ -28,6 +28,85 @@ from zoo.pipeline.api.net.torch_criterion import TorchCriterion
 
 class TestTF(ZooTestCase):
 
+    def test_lenet(self):
+        class LeNet(nn.Module):
+            def __init__(self):
+                super(LeNet, self).__init__()
+                self.conv1 = nn.Conv2d(1, 20, 5, 1)
+                self.conv2 = nn.Conv2d(20, 50, 5, 1)
+                self.fc1 = nn.Linear(4 * 4 * 50, 500)
+                self.fc2 = nn.Linear(500, 10)
+
+            def forward(self, x):
+                x = F.relu(self.conv1(x))
+                x = F.max_pool2d(x, 2, 2)
+                x = F.relu(self.conv2(x))
+                x = F.max_pool2d(x, 2, 2)
+                x = x.view(-1, 4 * 4 * 50)
+                x = F.relu(self.fc1(x))
+                x = self.fc2(x)
+                return F.log_softmax(x, dim=1)
+
+        torch_model = LeNet()
+        model = TorchNet.from_pytorch(torch_model, [1, 1, 28, 28])
+        input = np.random.random([64, 1, 28, 28])
+        output = model.forward(input)
+        grad_input = model.backward(input, output)
+        for i in range(0, 1000):
+            print(i)
+
+        print("111")
+
+    def test_bert_embedding(self):
+        from pytorch_transformers import BertConfig
+        from pytorch_transformers.modeling_bert import BertEmbeddings, BertForSequenceClassification
+        # model = BertForSequenceClassification(BertConfig()).eval()
+
+        class OuterBERT(nn.Module):
+            def __init__(self):
+                super(OuterBERT, self).__init__()
+                self.bert = BertForSequenceClassification(BertConfig()).eval()
+
+            def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None,
+                position_ids=None, head_mask=None):
+                input_ids = input_ids.long()
+                if token_type_ids:
+                    token_type_ids = token_type_ids.long()
+                if attention_mask:
+                    attention_mask = attention_mask.long()
+                return self.bert.forward(input_ids, token_type_ids, attention_mask, labels, position_ids, head_mask)
+        model = OuterBERT()
+        torch_input = torch.FloatTensor(8, 128).random_(0, 200)
+        # torch.LongTensor(4, 128).random_(0, 2), torch.LongTensor(4, 128).random_(0, 2)
+        torch_output = model.forward(torch_input)[0].detach().numpy()
+        print(torch_output)
+        net = TorchNet.from_pytorch(model, torch_input)
+        # zoo_output = net.forward(torch_input.numpy())
+        # grad_input = net.backward(torch_input.numpy(), zoo_output)
+        for i in range(0, 100):
+            print(i)
+            zoo_output = net.forward(torch_input.numpy())
+        print(zoo_output)
+        assert np.allclose(zoo_output, torch_output)
+
+    def test_embedding(self):
+        class FloatEmbed(nn.Module):
+            def __init__(self):
+                super(FloatEmbed, self).__init__()
+                self.embed = nn.Embedding(20, 5)
+
+            def forward(self, x):
+                x = x.long()  # Will cast to int64
+                return self.embed.forward(x)
+        model = FloatEmbed()
+        torch_input = torch.FloatTensor(4, 10).uniform_(0, 20)
+        torch_output = model.forward(torch_input).detach().numpy()
+        print(torch_output)
+        net = TorchNet.from_pytorch(model, torch_input)
+        zoo_output = net.forward(torch_input.numpy())
+        print(zoo_output)
+        assert np.allclose(zoo_output, torch_output)
+
     def test_torchnet_constructor(self):
         # two inputs test
         class TwoInputModel(nn.Module):
