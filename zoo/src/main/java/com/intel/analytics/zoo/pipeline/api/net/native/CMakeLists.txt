@@ -3,8 +3,8 @@ project(pytorch-engine)
 
 find_package(Torch REQUIRED)
 
-include_directories(/home/yuhao/programs/jdk1.8.0_121/include
-                   /home/yuhao/programs/jdk1.8.0_121//include/linux
+include_directories(/usr/lib/jvm/java-1.8.0-openjdk-amd64/include
+                   /usr/lib/jvm/java-1.8.0-openjdk-amd64//include/linux/
                    )
 
 add_library(pytorch-engine SHARED
