@@ -47,7 +47,15 @@ object Ml1mWideAndDeep {
     val bucketSize = 100
     val localColumnInfo = ColumnFeatureInfo(
       wideBaseCols = Array("occupation", "gender"),
-      wideBaseDims = Array(21, 3))
+      wideBaseDims = Array(21, 3),
+      wideCrossCols = Array("age-gender"),
+      wideCrossDims = Array(bucketSize),
+      indicatorCols = Array("genres", "gender"),
+      indicatorDims = Array(19, 3),
+      embedCols = Array("userId", "itemId"),
+      embedInDims = Array(userCount, itemCount),
+      embedOutDims = Array(64, 64),
+      continuousCols = Array("age"))
 
     val wideAndDeep: WideAndDeep[Float] = WideAndDeep[Float](
       params.modelType,
@@ -62,6 +70,7 @@ object Ml1mWideAndDeep {
       featureRdds.randomSplit(Array(0.8, 0.2))
     val trainRdds = trainpairFeatureRdds.map(x => x.sample)
     val validationRdds = validationpairFeatureRdds.map(x => x.sample)
+    println(validationRdds.count())
 
     val optimMethod = new Adam[Float](
       learningRate = 1e-2,
@@ -69,7 +78,7 @@ object Ml1mWideAndDeep {
 
     wideAndDeep.compile(optimizer = optimMethod,
       loss = BinaryCrossEntropy[Float](),
-      metrics = List(new PrecisionRecallAUC[Float]())
+      metrics = List(new AUC[Float]())
     )
     wideAndDeep.fit(trainRdds, batchSize = params.batchSize,
       nbEpoch = params.maxEpoch, validationData = validationRdds)

@@ -128,14 +128,14 @@ class WideAndDeep[T: ClassTag](
       case "deep" =>
         val (inputDeep, mergeList) = deepMerge(inputInd, inputEmb, inputCon)
         val deepLinear = deepHidden(mergeList.toList)
-        val out = Activation("softmax").inputs(deepLinear)
+        val out = Activation("sigmoid").inputs(deepLinear)
         Model(inputDeep, out).asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
 
       case "wide_n_deep" =>
         val (inputDeep, mergeList) = deepMerge(inputInd, inputEmb, inputCon)
         val deepLinear = deepHidden(mergeList)
         val merged = Merge.merge(List(wideLinear, deepLinear), "sum")
-        val out = Activation("softmax").inputs(merged)
+        val out = Activation("sigmoid").inputs(merged)
         Model(Array(inputWide) ++ inputDeep, out)
           .asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
       case _ =>
