@@ -17,10 +17,11 @@
 package com.intel.analytics.zoo.examples.recommendation
 
 import com.intel.analytics.bigdl.numeric.NumericFloat
-import com.intel.analytics.bigdl.optim.{Adam, Top1Accuracy}
+import com.intel.analytics.bigdl.optim.{Adam, PrecisionRecallAUC, Top1Accuracy}
 import com.intel.analytics.zoo.common.NNContext
 import com.intel.analytics.zoo.models.recommendation._
-import com.intel.analytics.zoo.pipeline.api.keras.objectives.SparseCategoricalCrossEntropy
+import com.intel.analytics.zoo.pipeline.api.keras.metrics.AUC
+import com.intel.analytics.zoo.pipeline.api.keras.objectives.{BinaryCrossEntropy, SparseCategoricalCrossEntropy}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions._
@@ -46,19 +47,11 @@ object Ml1mWideAndDeep {
     val bucketSize = 100
     val localColumnInfo = ColumnFeatureInfo(
       wideBaseCols = Array("occupation", "gender"),
-      wideBaseDims = Array(21, 3),
-      wideCrossCols = Array("age-gender"),
-      wideCrossDims = Array(bucketSize),
-      indicatorCols = Array("genres", "gender"),
-      indicatorDims = Array(19, 3),
-      embedCols = Array("userId", "itemId"),
-      embedInDims = Array(userCount, itemCount),
-      embedOutDims = Array(64, 64),
-      continuousCols = Array("age"))
+      wideBaseDims = Array(21, 3))
 
     val wideAndDeep: WideAndDeep[Float] = WideAndDeep[Float](
       params.modelType,
-      numClasses = 5,
+      numClasses = 1,
       columnInfo = localColumnInfo)
 
     val isImplicit = false
@@ -75,8 +68,8 @@ object Ml1mWideAndDeep {
       learningRateDecay = 1e-5)
 
     wideAndDeep.compile(optimizer = optimMethod,
-      loss = SparseCategoricalCrossEntropy[Float](zeroBasedLabel = false),
-      metrics = List(new Top1Accuracy[Float]())
+      loss = BinaryCrossEntropy[Float](),
+      metrics = List(new PrecisionRecallAUC[Float]())
     )
     wideAndDeep.fit(trainRdds, batchSize = params.batchSize,
       nbEpoch = params.maxEpoch, validationData = validationRdds)
@@ -162,7 +155,17 @@ object Ml1mWideAndDeep {
       .select(unioned("userId"), unioned("itemId"), col("label"), col("gender"), col("age"),
         col("occupation"), col("genres"), col("age-gender"))
 
-    val rddOfSample = joined.rdd.map(r => {
+    // 3|261197|
+    // 5|226310|
+    val filtered = joined.filter(joined("label") === 3 || joined("label") === 5)
+
+    val relabel = (s: Int) => {
+      if (s == 3) 0 else 1
+    }
+    val relabelUDF = udf(relabel)
+    val relabeled = filtered.withColumn("label", relabelUDF(col("label")))
+
+    val rddOfSample = relabeled.rdd.map(r => {
       val uid = r.getAs[Int]("userId")
       val iid = r.getAs[Int]("itemId")
       UserItemFeature(uid, iid, Utils.row2Sample(r, columnInfo, modelType))

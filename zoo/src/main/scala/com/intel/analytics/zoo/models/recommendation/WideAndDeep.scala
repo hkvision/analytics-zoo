@@ -121,7 +121,7 @@ class WideAndDeep[T: ClassTag](
 
     modelType match {
       case "wide" =>
-        val out = Activation("softmax").inputs(wideLinear)
+        val out = Activation("sigmoid").inputs(wideLinear)
         val model: Model[T] = Model(Array(inputWide), out)
           model.asInstanceOf[AbstractModule[Tensor[T], Tensor[T], T]]
 

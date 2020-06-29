@@ -111,7 +111,7 @@ object Utils {
     val deepTensor: Array[Tensor[Float]] = getDeepTensors(r, columnInfo)
     val l = r.getAs[Int](columnInfo.label)
     val label = Tensor[Float](T(l))
-    label.resize(1, 1)
+//    label.resize(1, 1)
 
     modelType match {
       case "wide_n_deep" =>
