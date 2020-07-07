@@ -78,7 +78,7 @@ object Ml1mWideAndDeep {
 
     wideAndDeep.compile(optimizer = optimMethod,
       loss = BinaryCrossEntropy[Float](),
-      metrics = List(new AUC[Float]())
+      metrics = List(new AUC[Float](), new Top1Accuracy[Float]())
     )
     wideAndDeep.fit(trainRdds, batchSize = params.batchSize,
       nbEpoch = params.maxEpoch, validationData = validationRdds)
